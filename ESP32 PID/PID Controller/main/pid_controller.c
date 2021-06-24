@@ -21,7 +21,7 @@
 #define TIMER_DIVIDER          16  //  Hardware timer clock divider
 #define TIMER_SCALE            (TIMER_BASE_CLK / TIMER_DIVIDER)  // convert counter value to seconds
 #define TIMER_INTERVAL0_SEC    (3.4179) // sample test interval for the first timer
-#define TIMER_INTERVAL_RPM_MEASURE (0.2)  // sample test interval for the second timer
+#define TIMER_INTERVAL_RPM_MEASURE (0.1)  // sample test interval for the second timer
 #define TIMER_INTERVAL_PID_UPDATE (0.21)  // sample test interval for the second timer
 #define TIMER_ISR_PID_UPDATE 		1
 #define TIMER_ISR_RPM_MEASUREMENT	2
@@ -180,6 +180,9 @@ void IRAM_ATTR isr_timer(void *para)
     	pcnt_counter_resume(PCNT_UNIT_0);
 
     	rpm = (count/CANT_RANURAS_ENCODER) * ((1/TIMER_INTERVAL_RPM_MEASURE) * 60.0);
+
+    	// calculate new PID value
+    	pid_motor.MyInput = (uint64_t)rpm;
     }
     else if(timer_intr & TIMER_INTR_T0) // timer 0 -> PID
     {
@@ -361,18 +364,13 @@ static void main_task(void *arg)
 
         if(evt.type == TIMER_ISR_RPM_MEASUREMENT)
         {
-        	//pid_motor.MyInput = (uint64_t)(rpm*0.4 + pid_motor.MyInput*0.6);
-        	pid_motor.MyInput = (uint64_t)rpm;
-			PID_Compute(&pid_motor);
-
-			if(pid_motor.MyOutput > 0)
+        	PID_Compute(&pid_motor);
+        	if(pid_motor.MyOutput > 0)
 			{
 				ledc_set_duty(ledc_channel[0].speed_mode, ledc_channel[0].channel, (uint32_t)pid_motor.MyOutput*RPM_PID_SCALE_FACTOR);
 				ledc_update_duty(ledc_channel[0].speed_mode, ledc_channel[0].channel);
 				ledc_set_duty(ledc_channel[1].speed_mode, ledc_channel[1].channel, 0);
 				ledc_update_duty(ledc_channel[1].speed_mode, ledc_channel[1].channel);
-
-				//printf("## EVENT LEFT\n\n");
 			}
 			else
 			{
@@ -380,15 +378,11 @@ static void main_task(void *arg)
 				ledc_update_duty(ledc_channel[1].speed_mode, ledc_channel[1].channel);
 				ledc_set_duty(ledc_channel[0].speed_mode, ledc_channel[0].channel, 0);
 				ledc_update_duty(ledc_channel[0].speed_mode, ledc_channel[0].channel);
-				printf("## EVENT RIGHT\n\n");
 			}
         }
     }
 }
 
-/*
- * In this example, we will test hardware timer0 and timer1 of timer group0.
- */
 void app_main(void)
 {
     int pcnt_unit = PCNT_UNIT_0;
