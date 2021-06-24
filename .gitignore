@@ -1,2 +1,9 @@
 *.pdf
-PID/Arduino-PID-Library
+CMakeLists.txt
+build/
+*.cproject
+*.project
+*.projbuild
+LICENSE
+sdkconfig
+.vscode/
