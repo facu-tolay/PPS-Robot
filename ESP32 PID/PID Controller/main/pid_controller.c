@@ -10,11 +10,13 @@
 #include "esp_err.h"
 #include "PID-V1.0.0/pid.h"
 
-#define SETPOINT (double)70
+#define SETPOINT (float)60
 
 #define CANT_RANURAS_ENCODER 24.0
 #define MAX_RPM_MOTOR 400
-#define MAX_PWM_VALUE 8192
+#define MAX_PWM_VALUE 4096
+#define MINPWM	4000 //Minima potencia PWM
+#define MAXPWM	8192 //Maxima potencia PWM
 #define MIN_PWM_VALUE 90
 #define RPM_PID_SCALE_FACTOR 20.48
 
@@ -61,87 +63,104 @@
 int16_t count = 0; // for counting pulses
 float rpm;
 
-/*
- * A sample structure to pass events
- * from the timer interrupt handler to the main program.
- */
+char flag;
+
+const float  Kp = 10.00; 	// Constante Kp. Mientras mayor, mas potencia tiene el auto cuando el error es grande (Este valor es Kc)
+const float  Ti = 0.075;  	// Constante Ti. SI ES MUY GRANDE SE ANULA LA ACCION INTEGRADORA
+int 		 u  = 0;	 	// Acción de control
+float 		 P;	 	// Acción proporcional.
+float 		 I;	 	// Acción integral, estado k.  Trata de llevar el error al minimo.
+float Ik_1; 	// Accion integral, estado k+1
+
+const float Kpwm = (MAXPWM - MINPWM);
+const float OffsetPwm = MINPWM;
+const float Ts = TIMER_INTERVAL_RPM_MEASURE;		// Tiempo de muestreo [s] usado para el controlador PI
+
 typedef struct {
     int type;  // the type of timer's event
     int timer_group;
     int timer_idx;
     uint64_t timer_counter_value;
     int16_t pulses_count;
+    float rpm;
 } timer_event_t;
 
 PID_TypeDef pid_motor;
-
 xQueueHandle timer_queue;
-
 ledc_channel_config_t ledc_channel[CANT_LEDC_CHANNELS];
 
-/* Calculate PWM output for PID */
-void PID_Compute(PID_TypeDef *uPID)
+void motorSetSpeed(unsigned int pwm_value)
 {
-	double input;
-	double error;
-	double dInput;
-	double output;
+	ledc_set_duty(ledc_channel[0].speed_mode, ledc_channel[0].channel, pwm_value);
+	ledc_update_duty(ledc_channel[0].speed_mode, ledc_channel[0].channel);
+	ledc_set_duty(ledc_channel[1].speed_mode, ledc_channel[1].channel, 0);
+	ledc_update_duty(ledc_channel[1].speed_mode, ledc_channel[1].channel);
+}
 
-	/* ..... Compute all the working error variables ..... */
-	input   = uPID->MyInput;
-	error   = uPID->MySetpoint - input;
-	dInput  = (input - uPID->LastInput);
+void motorStop()
+{
+	ledc_set_duty(ledc_channel[0].speed_mode, ledc_channel[0].channel, 0);
+	ledc_update_duty(ledc_channel[0].speed_mode, ledc_channel[0].channel);
+	ledc_set_duty(ledc_channel[1].speed_mode, ledc_channel[1].channel, 0);
+	ledc_update_duty(ledc_channel[1].speed_mode, ledc_channel[1].channel);
+}
 
-	printf("my_setpoint: %f\n", uPID->MySetpoint);
-	printf("my_input: %f\n", uPID->MyInput);
-	printf("error: %f\n", error);
-	printf("delta: %f\n", dInput);
 
-	uPID->OutputSum += (uPID->Ki * error);
-
-	/* ..... Add Proportional on Measurement, if P_ON_M is specified ..... */
-	if (!uPID->POnE)
-	{
-		uPID->OutputSum -= uPID->Kp * dInput;
-	}
-
-	if (uPID->OutputSum > uPID->OutMax)
-	{
-		uPID->OutputSum = uPID->OutMax;
-	}
-	else if (uPID->OutputSum < uPID->OutMin)
-	{
-		uPID->OutputSum = uPID->OutMin;
-	}
-
-	/* ..... Add Proportional on Error, if P_ON_E is specified ..... */
-	if (uPID->POnE)
-	{
-		output = uPID->Kp * error;
-	}
+/* Devuelve el valor absoluto de un entero */
+float absolute(float val){
+	if(val>0)
+		return val;
 	else
+		return (val*(-1));
+}
+
+/* Limita un valor a un minimo y un maximo */
+float constrain(float val, float min, float max)
+{
+	if((val>=min) && (val<=max))
 	{
-		output = 0;
+		return val;
 	}
 
-	/* ->.... Compute Rest of PID Output ..... */
-	output += uPID->OutputSum - uPID->Kd * dInput;
-
-	if (output > uPID->OutMax)
+	else if (val<min)
 	{
-		output = uPID->OutMax;
-	}
-	else if (output < uPID->OutMin)
-	{
-		output = uPID->OutMin;
+		return min;
 	}
 
-	uPID->MyOutput = (uint64_t)output;
+	else if (val>max)
+	{
+		return max;
+	}
 
-	/* ..... Remember some variables for next time ..... */
-	uPID->LastInput = (uint64_t)input;
+	return 0; //error
+}
 
-	printf("output: %f\n\n", uPID->MyOutput);
+/* Calculate PWM output for PID */
+void PID_Compute(float dist_actual, float dist_destino)
+{
+	/* Cálculo de coeficientes del controlador */
+	float error = dist_actual-dist_destino;
+
+	error = absolute(error);				//Devuelve el valor absoluto de un entero
+
+	/* Ley de Control PID */
+	P = Kp*error;
+	I = Ik_1;
+
+	/* Ejecución de la acción */
+	u = (int) constrain(((P + I) * Kpwm + OffsetPwm), MINPWM, MAXPWM); 	/* Limita un valor a un minimo y un maximo */
+
+	/* Control para que el motor no siga trabajando cuando llega a la distancia objetivo */
+	if(error>1)
+		motorSetSpeed(MAXPWM);
+	else
+		motorSetSpeed(0);
+
+	// Actualización de valores para la próxima iteración
+	if(error>1)
+		Ik_1 = I + Kp*Ts / Ti*error;
+	else
+		Ik_1 = 0.0;
 }
 
 /*
@@ -159,47 +178,32 @@ void IRAM_ATTR isr_timer(void *para)
 
     /* Retrieve the interrupt status and the counter value from the timer that reported the interrupt */
     uint32_t timer_intr = timer_group_get_intr_status_in_isr(TIMER_GROUP_0);
-    uint64_t timer_counter_value = timer_group_get_counter_value_in_isr(TIMER_GROUP_0, timer_idx);
 
     /* Prepare basic event data that will be then sent back to the main program task */
-    timer_event_t evt;
-    evt.timer_group = 0;
-    evt.timer_idx = timer_idx;
-    evt.timer_counter_value = timer_counter_value;
+    //timer_event_t evt;
 
     if (timer_intr & TIMER_INTR_T1) // timer 1 -> RPM
     {
-        evt.type = TIMER_ISR_RPM_MEASUREMENT;
+        //evt.type = TIMER_ISR_RPM_MEASUREMENT;
         timer_group_clr_intr_status_in_isr(TIMER_GROUP_0, TIMER_1);
 
         // get pulses
         pcnt_get_counter_value(PCNT_UNIT_0, &count);
-        evt.pulses_count = count;
+        //evt.pulses_count = count;
         pcnt_counter_pause(PCNT_UNIT_0);
     	pcnt_counter_clear(PCNT_UNIT_0);
     	pcnt_counter_resume(PCNT_UNIT_0);
 
     	rpm = (count/CANT_RANURAS_ENCODER) * ((1/TIMER_INTERVAL_RPM_MEASURE) * 60.0);
-
+    	flag=1;
     	// calculate new PID value
-    	pid_motor.MyInput = (uint64_t)rpm;
-    }
-    else if(timer_intr & TIMER_INTR_T0) // timer 0 -> PID
-    {
-    	evt.type = TIMER_ISR_PID_UPDATE;
-		timer_group_clr_intr_status_in_isr(TIMER_GROUP_0, TIMER_0);
-		evt.pulses_count = -1;
-    }
-    else
-    {
-    	evt.type = -1; // not supported even type
     }
 
     /* After the alarm has been triggered we need enable it again, so it is triggered the next time */
     timer_group_enable_alarm_in_isr(TIMER_GROUP_0, timer_idx);
 
     /* Now just send the event data back to the main program task */
-    xQueueSendFromISR(timer_queue, &evt, NULL);
+    //xQueueSendFromISR(timer_queue, &evt, NULL);
     timer_spinlock_give(TIMER_GROUP_0);
 }
 
@@ -359,27 +363,19 @@ static void main_task(void *arg)
 {
     while (1)
     {
-        timer_event_t evt;
+    	if(flag != 0)
+    	{
+    		PID_Compute(rpm, SETPOINT);
+    		flag=0;
+    		printf("%f\n", rpm);
+    	}
+        /*timer_event_t evt;
         xQueueReceive(timer_queue, &evt, portMAX_DELAY);
 
         if(evt.type == TIMER_ISR_RPM_MEASUREMENT)
         {
-        	PID_Compute(&pid_motor);
-        	if(pid_motor.MyOutput > 0)
-			{
-				ledc_set_duty(ledc_channel[0].speed_mode, ledc_channel[0].channel, (uint32_t)pid_motor.MyOutput*RPM_PID_SCALE_FACTOR);
-				ledc_update_duty(ledc_channel[0].speed_mode, ledc_channel[0].channel);
-				ledc_set_duty(ledc_channel[1].speed_mode, ledc_channel[1].channel, 0);
-				ledc_update_duty(ledc_channel[1].speed_mode, ledc_channel[1].channel);
-			}
-			else
-			{
-				ledc_set_duty(ledc_channel[1].speed_mode, ledc_channel[1].channel, (uint32_t)-pid_motor.MyOutput*RPM_PID_SCALE_FACTOR);
-				ledc_update_duty(ledc_channel[1].speed_mode, ledc_channel[1].channel);
-				ledc_set_duty(ledc_channel[0].speed_mode, ledc_channel[0].channel, 0);
-				ledc_update_duty(ledc_channel[0].speed_mode, ledc_channel[0].channel);
-			}
-        }
+
+        }*/
     }
 }
 
@@ -396,13 +392,13 @@ void app_main(void)
 
     pid_motor.MyInput = 0;
 
-    pid_motor.Kp = 15;
-    pid_motor.Ki = 0.5;
-    pid_motor.Kd = 3;
+    pid_motor.Kp = 10;
+    pid_motor.Ki = 0;
+    pid_motor.Kd = 5;
 
-    pid_motor.Kp = pid_motor.Kp;
+    /*pid_motor.Kp = pid_motor.Kp;
     pid_motor.Ki = pid_motor.Ki * TIMER_INTERVAL_PID_UPDATE;
-    pid_motor.Kd = pid_motor.Kd / TIMER_INTERVAL_PID_UPDATE;
+    pid_motor.Kd = pid_motor.Kd / TIMER_INTERVAL_PID_UPDATE;*/
 
     pid_motor.OutMax=MAX_PWM_VALUE;
     pid_motor.OutMin=MIN_PWM_VALUE;

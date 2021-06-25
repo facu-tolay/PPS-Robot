@@ -5,7 +5,7 @@
 //#define MINPWM			1200		//Minima potencia PWM
 //#define MAXPWM			3800  	//Maxima potencia PWM
 //
-//#include "PI.h"
+#include "PI.h"
 //#include "MotorControl.h"
 
 
@@ -20,14 +20,15 @@
  */
 int abs(int);
 int constrain(int, int, int);
+
 //int get_PI_dist();
 
 /*
  * Toma como argumento la distancia actual y la compara con la distancia seteada.
  */
-void controladorPI(int dist_actual, int dist_destino) {
+void ctrlPI(float dist_actual, float dist_destino) {
 
-	static const float Kpwm = (MAXPWM - MINPWM)/400;
+	static const float Kpwm = (MAXPWM - MINPWM);
 	static const float OffsetPwm = MINPWM;
 	static const float Ts = 0.001;		// Tiempo de muestreo [s] usado para el controlador PI
 
@@ -43,17 +44,17 @@ void controladorPI(int dist_actual, int dist_destino) {
 
 	/* Cálculo de coeficientes del controlador */
 	//int error = dist_actual-dist_set; 	// 0<error<400 [cm]
- 	int error = dist_actual-dist_destino; 	// 0<error<400 [cm]
-	if(error>0){						// Define la direccion del motor
+ 	float error = dist_actual-dist_destino; 	// 0<error<400 [cm]
+	/*if(error>0){						// Define la direccion del motor
  		motorSetDirection(FORWARD);}
 	else{
 		motorSetDirection(BACKWARDS);
-	}
+	}*/
 	error = abs(error);					//Devuelve el valor absoluto de un entero
 
 	/* Ley de Control PID */
-	P = (float) Kp*error;
-	I = (float) Ik_1;
+	P = Kp*error;
+	I = Ik_1;
 
 	/* Ejecución de la acción */
 	u = (int) constrain(((P + I) * Kpwm + OffsetPwm),MINPWM,MAXPWM); 	/* Limita un valor a un minimo y un maximo */
@@ -62,7 +63,7 @@ void controladorPI(int dist_actual, int dist_destino) {
 	if(error>1)
 		motorSetSpeed(u);
 	else
-		motorStop(STOP_H);
+		motorStop();
 
 	// Actualización de valores para la próxima iteración
 	if(error>1)
@@ -71,9 +72,25 @@ void controladorPI(int dist_actual, int dist_destino) {
 		Ik_1 = 0.0;
 }
 
+void motorSetSpeed(unsigned int pwm_value)
+{
+	ledc_set_duty(ledc_channel[0].speed_mode, ledc_channel[0].channel, pwm_value);
+	ledc_update_duty(ledc_channel[0].speed_mode, ledc_channel[0].channel);
+	ledc_set_duty(ledc_channel[1].speed_mode, ledc_channel[1].channel, 0);
+	ledc_update_duty(ledc_channel[1].speed_mode, ledc_channel[1].channel);
+}
+
+void motorStop()
+{
+	ledc_set_duty(ledc_channel[0].speed_mode, ledc_channel[0].channel, 0);
+	ledc_update_duty(ledc_channel[0].speed_mode, ledc_channel[0].channel);
+	ledc_set_duty(ledc_channel[1].speed_mode, ledc_channel[1].channel, 0);
+	ledc_update_duty(ledc_channel[1].speed_mode, ledc_channel[1].channel);
+}
+
 
 /* Devuelve el valor absoluto de un entero */
-int abs(int val){
+float abs(float val){
 	if(val>0)
 		return val;
 	else
