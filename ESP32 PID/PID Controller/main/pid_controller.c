@@ -1,93 +1,18 @@
-#include <stdio.h>
-#include "esp_types.h"
-#include "freertos/FreeRTOS.h"
-#include "freertos/task.h"
-#include "freertos/queue.h"
-#include "driver/periph_ctrl.h"
-#include "driver/pcnt.h"
-#include "driver/timer.h"
-#include "driver/ledc.h"
-#include "esp_err.h"
-#include "PID-V1.0.0/pid.h"
-
-#define SETPOINT (float)60
-
-#define CANT_RANURAS_ENCODER 24.0
-#define MAX_RPM_MOTOR 400
-#define MAX_PWM_VALUE 4096
-#define MINPWM	4000 //Minima potencia PWM
-#define MAXPWM	8192 //Maxima potencia PWM
-#define MIN_PWM_VALUE 90
-#define RPM_PID_SCALE_FACTOR 20.48
-
-#define TIMER_DIVIDER          16  //  Hardware timer clock divider
-#define TIMER_SCALE            (TIMER_BASE_CLK / TIMER_DIVIDER)  // convert counter value to seconds
-#define TIMER_INTERVAL0_SEC    (3.4179) // sample test interval for the first timer
-#define TIMER_INTERVAL_RPM_MEASURE (0.1)  // sample test interval for the second timer
-#define TIMER_INTERVAL_PID_UPDATE (0.21)  // sample test interval for the second timer
-#define TIMER_ISR_PID_UPDATE 		1
-#define TIMER_ISR_RPM_MEASUREMENT	2
-
-#define PCNT_INPUT_SIG_IO   4  // Pulse Input GPIO
-#define PCNT_INPUT_CTRL_IO  15 // Control GPIO HIGH=count up, LOW=count down
-#define PCNT_H_LIM_VAL      10
-#define PCNT_L_LIM_VAL     -10
-
-#define MOT_1_A_GPIO	5
-#define MOT_1_B_GPIO	18
-#define MOT_2_A_GPIO	19
-#define MOT_2_B_GPIO	21
-/*
- * #define GPIO_CH0 (13)
-#define GPIO_CH1 (2)
-#define GPIO_CH2 (14)
-#define GPIO_CH3 (15)
- * */
-
-#define INCLUDE_vTaskDelay 1
-
-#define CANT_LEDC_CHANNELS       (4)
-#define LEDC_TEST_DUTY         (4000)
-#define LEDC_TEST_FADE_TIME    (3000)
-
-#define CHANNEL_CH0	LEDC_CHANNEL_0
-#define CHANNEL_CH1 LEDC_CHANNEL_1
-#define CHANNEL_CH2 LEDC_CHANNEL_2
-#define CHANNEL_CH3 LEDC_CHANNEL_3
-
-#define LEDC_LS_TIMER          LEDC_TIMER_1
-#define LEDC_LS_MODE           LEDC_LOW_SPEED_MODE
-#define LEDC_HS_TIMER          LEDC_TIMER_0
-#define LEDC_HS_MODE           LEDC_HIGH_SPEED_MODE
+#include "pid_controller.h"
 
 int16_t count = 0; // for counting pulses
 float rpm;
 
-char flag;
-
-const float  Kp = 10.00; 	// Constante Kp. Mientras mayor, mas potencia tiene el auto cuando el error es grande (Este valor es Kc)
-const float  Ti = 0.075;  	// Constante Ti. SI ES MUY GRANDE SE ANULA LA ACCION INTEGRADORA
-int 		 u  = 0;	 	// Acción de control
-float 		 P;	 	// Acción proporcional.
-float 		 I;	 	// Acción integral, estado k.  Trata de llevar el error al minimo.
-float Ik_1; 	// Accion integral, estado k+1
-
-const float Kpwm = (MAXPWM - MINPWM);
-const float OffsetPwm = MINPWM;
-const float Ts = TIMER_INTERVAL_RPM_MEASURE;		// Tiempo de muestreo [s] usado para el controlador PI
-
-typedef struct {
-    int type;  // the type of timer's event
-    int timer_group;
-    int timer_idx;
-    uint64_t timer_counter_value;
-    int16_t pulses_count;
-    float rpm;
-} timer_event_t;
-
-PID_TypeDef pid_motor;
 xQueueHandle timer_queue;
 ledc_channel_config_t ledc_channel[CANT_LEDC_CHANNELS];
+
+float K_proportional = 40;
+float K_integral = 2;
+float K_derivative = 0.1;
+
+float Error_Integral = 0;
+float Error_Derivative = 0;
+float Previous_Error = 0;
 
 void motorSetSpeed(unsigned int pwm_value)
 {
@@ -105,9 +30,9 @@ void motorStop()
 	ledc_update_duty(ledc_channel[1].speed_mode, ledc_channel[1].channel);
 }
 
-
 /* Devuelve el valor absoluto de un entero */
-float absolute(float val){
+float absolute(float val)
+{
 	if(val>0)
 		return val;
 	else
@@ -138,29 +63,31 @@ float constrain(float val, float min, float max)
 /* Calculate PWM output for PID */
 void PID_Compute(float dist_actual, float dist_destino)
 {
-	/* Cálculo de coeficientes del controlador */
-	float error = dist_actual-dist_destino;
+	// Calculate error
+	double error = setpoint - pv;
 
-	error = absolute(error);				//Devuelve el valor absoluto de un entero
+	// Proportional term
+	double Pout = _Kp * error;
 
-	/* Ley de Control PID */
-	P = Kp*error;
-	I = Ik_1;
+	// Integral term
+	_integral += error * _dt;
+	double Iout = _Ki * _integral;
 
-	/* Ejecución de la acción */
-	u = (int) constrain(((P + I) * Kpwm + OffsetPwm), MINPWM, MAXPWM); 	/* Limita un valor a un minimo y un maximo */
+	// Derivative term
+	double derivative = (error - _pre_error) / _dt;
+	double Dout = _Kd * derivative;
 
-	/* Control para que el motor no siga trabajando cuando llega a la distancia objetivo */
-	if(error>1)
-		motorSetSpeed(MAXPWM);
-	else
-		motorSetSpeed(0);
+	// Calculate total output
+	double output = Pout + Iout + Dout;
 
-	// Actualización de valores para la próxima iteración
-	if(error>1)
-		Ik_1 = I + Kp*Ts / Ti*error;
-	else
-		Ik_1 = 0.0;
+	// Restrict to max/min
+	if( output > _max )
+		output = _max;
+	else if( output < _min )
+		output = _min;
+
+	// Save error to previous error
+	_pre_error = error;
 }
 
 /*
@@ -175,36 +102,31 @@ void IRAM_ATTR isr_timer(void *para)
 {
     timer_spinlock_take(TIMER_GROUP_0);
     int timer_idx = (int) para;
+    timer_event_t evt;
 
     /* Retrieve the interrupt status and the counter value from the timer that reported the interrupt */
     uint32_t timer_intr = timer_group_get_intr_status_in_isr(TIMER_GROUP_0);
 
-    /* Prepare basic event data that will be then sent back to the main program task */
-    //timer_event_t evt;
-
     if (timer_intr & TIMER_INTR_T1) // timer 1 -> RPM
-    {
-        //evt.type = TIMER_ISR_RPM_MEASUREMENT;
-        timer_group_clr_intr_status_in_isr(TIMER_GROUP_0, TIMER_1);
+	{
+		timer_group_clr_intr_status_in_isr(TIMER_GROUP_0, TIMER_1);
 
-        // get pulses
-        pcnt_get_counter_value(PCNT_UNIT_0, &count);
-        //evt.pulses_count = count;
-        pcnt_counter_pause(PCNT_UNIT_0);
-    	pcnt_counter_clear(PCNT_UNIT_0);
-    	pcnt_counter_resume(PCNT_UNIT_0);
+		// get pulses
+		pcnt_get_counter_value(PCNT_UNIT_0, &count);
+		evt.pulses_count = count;
+		pcnt_counter_pause(PCNT_UNIT_0);
+		pcnt_counter_clear(PCNT_UNIT_0);
+		pcnt_counter_resume(PCNT_UNIT_0);
 
-    	rpm = (count/CANT_RANURAS_ENCODER) * ((1/TIMER_INTERVAL_RPM_MEASURE) * 60.0);
-    	flag=1;
-    	// calculate new PID value
-    }
+		//evt.rpm = (count/CANT_RANURAS_ENCODER) * ((1/TIMER_INTERVAL_RPM_MEASURE) * 60.0);
+		// calculate new PID value
+	}
 
     /* After the alarm has been triggered we need enable it again, so it is triggered the next time */
     timer_group_enable_alarm_in_isr(TIMER_GROUP_0, timer_idx);
-
-    /* Now just send the event data back to the main program task */
-    //xQueueSendFromISR(timer_queue, &evt, NULL);
+    xQueueSendFromISR(timer_queue, &evt, NULL); // send the event data back to the main program task
     timer_spinlock_give(TIMER_GROUP_0);
+    return;
 }
 
 /*
@@ -214,7 +136,7 @@ void IRAM_ATTR isr_timer(void *para)
  * auto_reload - should the timer auto reload on alarm?
  * timer_interval_sec - the interval of alarm to set
  */
-static void timer_initialize(int timer_idx, bool auto_reload, double timer_interval_sec)
+void timer_initialize(int timer_idx, bool auto_reload, double timer_interval_sec)
 {
     /* Select and initialize basic parameters of the timer */
     timer_config_t config = {
@@ -223,7 +145,7 @@ static void timer_initialize(int timer_idx, bool auto_reload, double timer_inter
         .counter_en = TIMER_PAUSE,
         .alarm_en = TIMER_ALARM_EN,
         .auto_reload = auto_reload,
-    }; // default clock source is APB
+    };
     timer_init(TIMER_GROUP_0, timer_idx, &config);
 
     /* Timer's counter will initially start from value below.
@@ -243,41 +165,41 @@ static void timer_initialize(int timer_idx, bool auto_reload, double timer_inter
  *  - set up the input filter
  *  - set up the counter events to watch
  */
-static void pcnt_initialize(int unit)
+void pcnt_initialize(int unit)
 {
-    /* Prepare configuration for the PCNT unit */
-    pcnt_config_t pcnt_config = {
-        // Set PCNT input signal and control GPIOs
-        .pulse_gpio_num = PCNT_INPUT_SIG_IO,
-        .ctrl_gpio_num = PCNT_INPUT_CTRL_IO,
-        .channel = PCNT_CHANNEL_0,
-        .unit = unit,
-        // What to do on the positive / negative edge of pulse input?
-        .pos_mode = PCNT_COUNT_INC,   // Count up on the positive edge
-        .neg_mode = PCNT_COUNT_DIS,   // Keep the counter value on the negative edge
-        // What to do when control input is low or high?
-        .lctrl_mode = PCNT_MODE_REVERSE, // Reverse counting direction if low
-        .hctrl_mode = PCNT_MODE_KEEP,    // Keep the primary counter mode if high
-        // Set the maximum and minimum limit values to watch
-        //.counter_h_lim = PCNT_H_LIM_VAL,
-        //.counter_l_lim = PCNT_L_LIM_VAL,
-    };
-    /* Initialize PCNT unit */
-    pcnt_unit_config(&pcnt_config);
+	/* Prepare configuration for the PCNT unit */
+	pcnt_config_t pcnt_config = {
+		// Set PCNT input signal and control GPIOs
+		.pulse_gpio_num = PCNT_INPUT_SIG_IO,
+		.ctrl_gpio_num = PCNT_INPUT_CTRL_IO,
+		.channel = PCNT_CHANNEL_0,
+		.unit = unit,
+		// What to do on the positive / negative edge of pulse input?
+		.pos_mode = PCNT_COUNT_INC,   // Count up on the positive edge
+		.neg_mode = PCNT_COUNT_DIS,   // Keep the counter value on the negative edge
+		// What to do when control input is low or high?
+		.lctrl_mode = PCNT_MODE_REVERSE, // Reverse counting direction if low
+		.hctrl_mode = PCNT_MODE_KEEP,    // Keep the primary counter mode if high
+		// Set the maximum and minimum limit values to watch
+		//.counter_h_lim = PCNT_H_LIM_VAL,
+		//.counter_l_lim = PCNT_L_LIM_VAL,
+	};
+	/* Initialize PCNT unit */
+	pcnt_unit_config(&pcnt_config);
 
-    /* Configure and enable the input filter */
-    pcnt_set_filter_value(unit, 500);
-    pcnt_filter_enable(unit);
+	/* Configure and enable the input filter */
+	pcnt_set_filter_value(unit, 100);
+	pcnt_filter_enable(unit);
 
-    /* Initialize PCNT's counter */
-    pcnt_counter_pause(unit);
-    pcnt_counter_clear(unit);
+	/* Initialize PCNT's counter */
+	pcnt_counter_pause(unit);
+	pcnt_counter_clear(unit);
 
-    /* Everything is set up, now go to counting */
-    pcnt_counter_resume(unit);
+	/* Everything is set up, now go to counting */
+	pcnt_counter_resume(unit);
 }
 
-static void pwm_initialize()
+void pwm_initialize()
 {
 	int ch;
 
@@ -327,24 +249,6 @@ static void pwm_initialize()
 	channel_conf.timer_sel  = LEDC_HS_TIMER;
 
 	ledc_channel[1] = channel_conf;
-	/*
-		{
-			.channel    = CHANNEL_CH2,
-			.duty       = 0,
-			.gpio_num   = MOT_2_A_GPIO,
-			.speed_mode = LEDC_LS_MODE,
-			.hpoint     = 0,
-			.timer_sel  = LEDC_LS_TIMER
-		},
-		{
-			.channel    = CHANNEL_CH3,
-			.duty       = 0,
-			.gpio_num   = MOT_2_B_GPIO,
-			.speed_mode = LEDC_LS_MODE,
-			.hpoint     = 0,
-			.timer_sel  = LEDC_LS_TIMER
-		},
-	};*/
 
 	// Set LED Controller with previously prepared configuration
 	for (ch = 0; ch < CANT_LEDC_CHANNELS; ch++)
@@ -359,23 +263,22 @@ static void pwm_initialize()
 /*
  * The main task of this example program
  */
-static void main_task(void *arg)
+void main_task(void *arg)
 {
+	timer_event_t evt;
     while (1)
     {
-    	if(flag != 0)
-    	{
-    		PID_Compute(rpm, SETPOINT);
-    		flag=0;
-    		printf("%f\n", rpm);
-    	}
-        /*timer_event_t evt;
-        xQueueReceive(timer_queue, &evt, portMAX_DELAY);
-
-        if(evt.type == TIMER_ISR_RPM_MEASUREMENT)
-        {
-
-        }*/
+    	xQueueReceive(timer_queue, &evt, portMAX_DELAY);
+    	rpm = (evt.pulses_count/CANT_RANURAS_ENCODER) * ((1/TIMER_INTERVAL_RPM_MEASURE) * 60.0);
+    	PID_Compute(rpm, SETPOINT);
+    	//i++;
+    	//rpm = rpm * 0.4 + evt.rpm * 0.6;
+    	//if(i>=100)
+		{
+    		printf("RPM= %f\n", rpm);
+    		//i=0;
+		}
+    	//vTaskDelay(100); // a veces es necesario meter un delay para dejar que otras tareas se ejecuten.
     }
 }
 
@@ -387,29 +290,7 @@ void app_main(void)
     pcnt_initialize(pcnt_unit);
     timer_queue = xQueueCreate(10, sizeof(timer_event_t));
     timer_initialize(TIMER_1, TIMER_ISR_RPM_MEASUREMENT, TIMER_INTERVAL_RPM_MEASURE);
-    timer_initialize(TIMER_0, TIMER_ISR_PID_UPDATE, TIMER_INTERVAL_PID_UPDATE);
     pwm_initialize();
-
-    pid_motor.MyInput = 0;
-
-    pid_motor.Kp = 10;
-    pid_motor.Ki = 0;
-    pid_motor.Kd = 5;
-
-    /*pid_motor.Kp = pid_motor.Kp;
-    pid_motor.Ki = pid_motor.Ki * TIMER_INTERVAL_PID_UPDATE;
-    pid_motor.Kd = pid_motor.Kd / TIMER_INTERVAL_PID_UPDATE;*/
-
-    pid_motor.OutMax=MAX_PWM_VALUE;
-    pid_motor.OutMin=MIN_PWM_VALUE;
-    pid_motor.POnE = 0;
-
-    pid_motor.MySetpoint = SETPOINT;
-    // en cada llamada setear
-    /*
-     * myinput
-     * mysetpoint
-     */
 
     xTaskCreate(main_task, "timer_evt_task", 2048, NULL, 5, NULL);
 }
