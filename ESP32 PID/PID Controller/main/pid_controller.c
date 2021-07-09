@@ -1,93 +1,135 @@
 #include "pid_controller.h"
 
+#define WHEEL_DIAMETER			(float)5 // in [cm]
+#define CANT_RANURAS_ENCODER	(float)24
+#define ONE_TURN_DISPLACEMENT	(float)15.708 // por cada vuelta de la rueda, se avanza 2.PI.r = 2 x PI x 2.5cm = 15.708 [cm]
+#define DELTA_DISTANCE_PER_SLIT	(float)(ONE_TURN_DISPLACEMENT/CANT_RANURAS_ENCODER)// cuantos [cm] avanza por cada ranura
+
+#define SETPOINT (float)120 // in [cm]
+
 int16_t count = 0; // for counting pulses
-float rpm;
+int16_t count_sum = 0; // for accumulating pulses
+int16_t objective_count = SETPOINT / DELTA_DISTANCE_PER_SLIT;
 
 xQueueHandle timer_queue;
-ledc_channel_config_t ledc_channel[CANT_LEDC_CHANNELS];
 
-float K_proportional = 40;
-float K_integral = 2;
-float K_derivative = 0.1;
+// Variables for PID computing
+float _Kp = 20;
+float _Ki = 5;
+float _Kd = 14;
 
-float Error_Integral = 0;
-float Error_Derivative = 0;
-float Previous_Error = 0;
+float _integral;
+float _pre_error;
+float _dt = TIMER_INTERVAL_RPM_MEASURE;
 
-void motorSetSpeed(unsigned int pwm_value)
-{
-	ledc_set_duty(ledc_channel[0].speed_mode, ledc_channel[0].channel, pwm_value);
-	ledc_update_duty(ledc_channel[0].speed_mode, ledc_channel[0].channel);
-	ledc_set_duty(ledc_channel[1].speed_mode, ledc_channel[1].channel, 0);
-	ledc_update_duty(ledc_channel[1].speed_mode, ledc_channel[1].channel);
-}
-
-void motorStop()
-{
-	ledc_set_duty(ledc_channel[0].speed_mode, ledc_channel[0].channel, 0);
-	ledc_update_duty(ledc_channel[0].speed_mode, ledc_channel[0].channel);
-	ledc_set_duty(ledc_channel[1].speed_mode, ledc_channel[1].channel, 0);
-	ledc_update_duty(ledc_channel[1].speed_mode, ledc_channel[1].channel);
-}
-
-/* Devuelve el valor absoluto de un entero */
-float absolute(float val)
-{
-	if(val>0)
-		return val;
-	else
-		return (val*(-1));
-}
-
-/* Limita un valor a un minimo y un maximo */
-float constrain(float val, float min, float max)
-{
-	if((val>=min) && (val<=max))
-	{
-		return val;
-	}
-
-	else if (val<min)
-	{
-		return min;
-	}
-
-	else if (val>max)
-	{
-		return max;
-	}
-
-	return 0; //error
-}
+int motor_direction;
 
 /* Calculate PWM output for PID */
-void PID_Compute(float dist_actual, float dist_destino)
+int PID_Compute(unsigned int dist_actual, unsigned int dist_destino)
 {
 	// Calculate error
-	double error = setpoint - pv;
+	int error = dist_destino - dist_actual;
 
-	// Proportional term
-	double Pout = _Kp * error;
+	//printf("error= %d / ", error);
+	float Pout = _Kp * error; // Proportional term
+	//printf("Pout= %4.2f / ", Pout);
 
-	// Integral term
-	_integral += error * _dt;
-	double Iout = _Ki * _integral;
+	_integral += error * _dt; // Integral term
+	float Iout = _Ki * _integral;
+	//printf("Iout= %4.2f / ", Iout);
 
-	// Derivative term
-	double derivative = (error - _pre_error) / _dt;
-	double Dout = _Kd * derivative;
+	float derivative = (error - _pre_error) / _dt; // Derivative term
+	float Dout = _Kd * derivative;
+	//printf("Dout= %4.2f / ", Dout);
 
 	// Calculate total output
-	double output = Pout + Iout + Dout;
+	float output = (Pout + Iout + Dout);
+	//printf("OUT_PID= %4.2f\n", output);
 
 	// Restrict to max/min
-	if( output > _max )
-		output = _max;
-	else if( output < _min )
-		output = _min;
+	if(error > 0)
+	{
+		motor_direction = 1;
+		if(output > MAX_PWM_VALUE)
+		{
+			output = MAX_PWM_VALUE;
+		}
+		else if(output < MIN_PWM_VALUE)
+		{
+			output = MIN_PWM_VALUE;
+		}
+	}
+	else if(error < 0)
+	{
+		motor_direction = 0;
+		if(output < -MAX_PWM_VALUE)
+		{
+			output = -MAX_PWM_VALUE;
+		}
+		else if(output > -MIN_PWM_VALUE)
+		{
+			output = -MIN_PWM_VALUE;
+		}
+	}
+	motorSetSpeed(output);
 
 	// Save error to previous error
 	_pre_error = error;
+
+	return output;
+}
+
+/*
+ * The main task of this example program
+ */
+void main_task(void *arg)
+{
+	timer_event_t evt;
+	float out=0;
+
+	vTaskDelay(200);
+	gpio_set_level(GPIO_READY_LED, 1);
+	vTaskDelay(100);
+	gpio_set_level(GPIO_READY_LED, 0);
+	vTaskDelay(100);
+	gpio_set_level(GPIO_ENABLE_MOTORS, 1);
+
+    while (1)
+    {
+    	xQueueReceive(timer_queue, &evt, portMAX_DELAY);
+
+    	if(motor_direction)
+    	{
+    		count_sum += evt.pulses_count;
+    	}
+    	else
+    	{
+    		count_sum -= evt.pulses_count;
+    	}
+    	out = PID_Compute(count_sum, objective_count);
+
+    	if(out == 0)
+    	{
+    		count_sum = objective_count;
+    	}
+
+    	printf("pulses count= %u # sum= %u # count_obj= %u # OUT= %f\n", evt.pulses_count, count_sum, objective_count, out);
+    	//vTaskDelay(100); // a veces es necesario meter un delay para dejar que otras tareas se ejecuten.
+    }
+}
+
+void app_main(void)
+{
+    int pcnt_unit = PCNT_UNIT_0;
+
+    /* Initialize PCNT event queue and PCNT functions */
+    pcnt_initialize(pcnt_unit);
+    timer_queue = xQueueCreate(10, sizeof(timer_event_t));
+    timer_initialize(TIMER_1, TIMER_ISR_RPM_MEASUREMENT, TIMER_INTERVAL_RPM_MEASURE);
+    pwm_initialize();
+    gpio_initialize();
+
+    xTaskCreate(main_task, "timer_evt_task", 2048, NULL, 5, NULL);
 }
 
 /*
@@ -204,51 +246,18 @@ void pwm_initialize()
 	int ch;
 
 	ledc_timer_config_t ledc_timer = {
-		.duty_resolution = LEDC_TIMER_13_BIT, // resolution of PWM duty
-		.freq_hz = 5000,                      // frequency of PWM signal
-		.speed_mode = LEDC_LS_MODE,           // timer mode
-		.timer_num = LEDC_LS_TIMER,            // timer index
-		.clk_cfg = LEDC_AUTO_CLK,              // Auto select the source clock
+		.duty_resolution = LEDC_TIMER_13_BIT,	// resolution of PWM duty
+		.freq_hz = 5000,						// frequency of PWM signal
+		.speed_mode = LEDC_LOW_SPEED_MODE,		// timer mode
+		.timer_num = LEDC_TIMER_1,				// timer index
+		.clk_cfg = LEDC_AUTO_CLK,				// Auto select the source clock
 	};
 
 	ledc_timer_config(&ledc_timer); // Set configuration of timer0 for high speed channels
 
-	ledc_timer.speed_mode = LEDC_HS_MODE; // Prepare and set configuration of timer1 for low speed channels
-	ledc_timer.timer_num = LEDC_HS_TIMER;
+	ledc_timer.speed_mode = LEDC_HIGH_SPEED_MODE; // Prepare and set configuration of timer1 for low speed channels
+	ledc_timer.timer_num = LEDC_TIMER_0;
 	ledc_timer_config(&ledc_timer);
-
-	/*
-	 * Prepare individual configuration
-	 * for each channel of LED Controller
-	 * by selecting:
-	 * - controller's channel number
-	 * - output duty cycle, set initially to 0
-	 * - GPIO number where LED is connected to
-	 * - speed mode, either high or low
-	 * - timer servicing selected channel
-	 *   Note: if different channels use one timer,
-	 *         then frequency and bit_num of these channels
-	 *         will be the same
-	 */
-	ledc_channel_config_t channel_conf;
-
-	channel_conf.channel    = CHANNEL_CH0;
-	channel_conf.duty       = 0;
-	channel_conf.gpio_num   = MOT_1_A_GPIO;
-	channel_conf.speed_mode = LEDC_HS_MODE;
-	channel_conf.hpoint     = 0;
-	channel_conf.timer_sel  = LEDC_HS_TIMER;
-
-	ledc_channel[0] = channel_conf;
-
-	channel_conf.channel    = CHANNEL_CH1;
-	channel_conf.duty       = 0;
-	channel_conf.gpio_num   = MOT_1_B_GPIO;
-	channel_conf.speed_mode = LEDC_HS_MODE;
-	channel_conf.hpoint     = 0;
-	channel_conf.timer_sel  = LEDC_HS_TIMER;
-
-	ledc_channel[1] = channel_conf;
 
 	// Set LED Controller with previously prepared configuration
 	for (ch = 0; ch < CANT_LEDC_CHANNELS; ch++)
@@ -260,38 +269,39 @@ void pwm_initialize()
 	ledc_fade_func_install(0);
 }
 
+void gpio_initialize()
+{
+	gpio_set_direction(GPIO_READY_LED, GPIO_MODE_OUTPUT);
+	gpio_set_direction(GPIO_ENABLE_MOTORS, GPIO_MODE_OUTPUT);
+	gpio_set_level(GPIO_ENABLE_MOTORS, 0);
+}
+
 /*
- * The main task of this example program
+ * Funcion para el control de velocidad del motor
  */
-void main_task(void *arg)
+void motorSetSpeed(signed int speed)
 {
-	timer_event_t evt;
-    while (1)
-    {
-    	xQueueReceive(timer_queue, &evt, portMAX_DELAY);
-    	rpm = (evt.pulses_count/CANT_RANURAS_ENCODER) * ((1/TIMER_INTERVAL_RPM_MEASURE) * 60.0);
-    	PID_Compute(rpm, SETPOINT);
-    	//i++;
-    	//rpm = rpm * 0.4 + evt.rpm * 0.6;
-    	//if(i>=100)
-		{
-    		printf("RPM= %f\n", rpm);
-    		//i=0;
-		}
-    	//vTaskDelay(100); // a veces es necesario meter un delay para dejar que otras tareas se ejecuten.
-    }
+	int speed_mot_a=0;
+	int speed_mot_b=0;
+
+	if(speed>0)
+	{
+		speed_mot_a = speed;
+	}
+	else if(speed<0)
+	{
+		speed_mot_b = -speed;
+	}
+
+	ledc_set_duty(ledc_channel[0].speed_mode, ledc_channel[0].channel, speed_mot_b);
+	ledc_update_duty(ledc_channel[0].speed_mode, ledc_channel[0].channel);
+	ledc_set_duty(ledc_channel[1].speed_mode, ledc_channel[1].channel, speed_mot_a);
+	ledc_update_duty(ledc_channel[1].speed_mode, ledc_channel[1].channel);
 }
 
-void app_main(void)
+void motorStop()
 {
-    int pcnt_unit = PCNT_UNIT_0;
-
-    /* Initialize PCNT event queue and PCNT functions */
-    pcnt_initialize(pcnt_unit);
-    timer_queue = xQueueCreate(10, sizeof(timer_event_t));
-    timer_initialize(TIMER_1, TIMER_ISR_RPM_MEASUREMENT, TIMER_INTERVAL_RPM_MEASURE);
-    pwm_initialize();
-
-    xTaskCreate(main_task, "timer_evt_task", 2048, NULL, 5, NULL);
+	motorSetSpeed(0);
 }
+
 
