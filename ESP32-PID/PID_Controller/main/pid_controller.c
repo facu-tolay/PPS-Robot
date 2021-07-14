@@ -5,29 +5,19 @@
 #define ONE_TURN_DISPLACEMENT	(float)15.708 // por cada vuelta de la rueda, se avanza 2.PI.r = 2 x PI x 2.5cm = 15.708 [cm]
 #define DELTA_DISTANCE_PER_SLIT	(float)(ONE_TURN_DISPLACEMENT/CANT_RANURAS_ENCODER)// cuantos [cm] avanza por cada ranura
 
-#define _Kp (float)11
+/*#define _Kp (float)11
 #define _Ki (float)5
-#define _Kd (float)16
+#define _Kd (float)16*/
+
+#define _Kp (float)6
+#define _Ki (float)7
+#define _Kd (float)15
 #define _dt	(float)TIMER_INTERVAL_RPM_MEASURE
 
 #define SETPOINT (float)120 // in [cm]
 
-/*int16_t count = 0; // for counting pulses
-int16_t count_sum = 0; // for accumulating pulses
-int16_t objective_count = SETPOINT / DELTA_DISTANCE_PER_SLIT;*/
-
-xQueueHandle timer_queue;
-
-// Variables for PID computing
-/*float _Kp = 11;
-float _Ki = 5;
-float _Kd = 16;*/
-
-/*float _integral;
-float _pre_error;
-float _dt = TIMER_INTERVAL_RPM_MEASURE;*/
-
-//int motor_direction;
+xQueueHandle task_motor_A_queue;
+xQueueHandle task_motor_B_queue;
 
 /* Calculate PWM output for PID */
 int PID_Compute(unsigned int dist_actual, unsigned int dist_destino)
@@ -40,7 +30,7 @@ int PID_Compute(unsigned int dist_actual, unsigned int dist_destino)
 
 	if(!error)
 	{
-		motorStop();
+		//motorStop();
 		_pre_error = 0;
 		_integral = 0;
 		return 0;
@@ -87,7 +77,7 @@ int PID_Compute(unsigned int dist_actual, unsigned int dist_destino)
 			output = -MIN_PWM_VALUE;
 		}
 	}
-	motorSetSpeed(output);
+	//motorSetSpeed(output);
 
 	// Save error to previous error
 	_pre_error = error;
@@ -98,9 +88,9 @@ int PID_Compute(unsigned int dist_actual, unsigned int dist_destino)
 /*
  * The main task of this example program
  */
-void main_task(void *arg)
+void task_motor_A(void *arg)
 {
-	timer_event_t evt;
+	motor_task_event_t evt;
 	float out=0;
 	unsigned int motor_direction=0;
 
@@ -116,7 +106,7 @@ void main_task(void *arg)
 
     while (1)
     {
-    	xQueueReceive(timer_queue, &evt, portMAX_DELAY);
+    	xQueueReceive(task_motor_A_queue, &evt, portMAX_DELAY);
 
     	if(motor_direction)
     	{
@@ -130,14 +120,62 @@ void main_task(void *arg)
 
     	if(out == 0)
     	{
+    		motorStop(MOT_A_SEL);
     		count_sum = objective_count;
     	}
     	else
     	{
+    		motorSetSpeed(MOT_A_SEL, out);
     		motor_direction = out > 0;
     	}
 
-    	printf("pulses count= %u # sum= %u # count_obj= %u # OUT= %f\n", evt.pulses_count, count_sum, objective_count, out);
+    	printf("TASK_A // pulses count= %u # sum= %u # count_obj= %u # OUT= %f\n", evt.pulses_count, count_sum, objective_count, out);
+    	//vTaskDelay(100); // a veces es necesario meter un delay para dejar que otras tareas se ejecuten.
+    }
+}
+
+void task_motor_B(void *arg)
+{
+	motor_task_event_t evt;
+	float out=0;
+	unsigned int motor_direction=0;
+
+	int16_t count_sum = 0; // for accumulating pulses
+	int16_t objective_count = SETPOINT / DELTA_DISTANCE_PER_SLIT;
+
+	vTaskDelay(200);
+	gpio_set_level(GPIO_READY_LED, 1);
+	vTaskDelay(100);
+	gpio_set_level(GPIO_READY_LED, 0);
+	vTaskDelay(100);
+	gpio_set_level(GPIO_ENABLE_MOTORS, 1);
+
+    while (1)
+    {
+    	xQueueReceive(task_motor_B_queue, &evt, portMAX_DELAY);
+
+    	if(motor_direction)
+    	{
+    		count_sum += evt.pulses_count;
+    	}
+    	else
+    	{
+    		count_sum -= evt.pulses_count;
+    	}
+    	out = PID_Compute(count_sum, objective_count);
+
+    	if(out == 0)
+    	{
+    		motorStop(MOT_B_SEL);
+    		count_sum = objective_count;
+    	}
+    	else
+    	{
+    		motorSetSpeed(MOT_B_SEL, out);
+    		motor_direction = out > 0;
+    	}
+
+    	printf("TASK_B // pulses count= %u # sum= %u # count_obj= %u # OUT= %f\n", evt.pulses_count, count_sum, objective_count, out);
     	//vTaskDelay(100); // a veces es necesario meter un delay para dejar que otras tareas se ejecuten.
     }
 }
@@ -147,15 +185,18 @@ void app_main(void)
     int pcnt_unit_left = PCNT_UNIT_0;
     int pcnt_unit_right = PCNT_UNIT_1;
 
-    /* Initialize PCNT event queue and PCNT functions */
     pcnt_initialize(pcnt_unit_left, PCNT_INPUT_SIG_IO_A);
     pcnt_initialize(pcnt_unit_right, PCNT_INPUT_SIG_IO_B);
-    timer_queue = xQueueCreate(10, sizeof(timer_event_t));
+
+    task_motor_A_queue = xQueueCreate(10, sizeof(motor_task_event_t));
+    task_motor_B_queue = xQueueCreate(10, sizeof(motor_task_event_t));
     timer_initialize(TIMER_1, TIMER_ISR_RPM_MEASUREMENT, TIMER_INTERVAL_RPM_MEASURE);
+
     pwm_initialize();
     gpio_initialize();
 
-    xTaskCreate(main_task, "timer_evt_task", 2048, NULL, 5, NULL);
+    xTaskCreate(task_motor_A, "task_motor_A", 2048, NULL, 5, NULL);
+    xTaskCreate(task_motor_B, "task_motor_B", 2048, NULL, 5, NULL);
 }
 
 /*
@@ -170,7 +211,8 @@ void IRAM_ATTR isr_timer(void *para)
 {
     timer_spinlock_take(TIMER_GROUP_0);
     int timer_idx = (int) para;
-    timer_event_t evt;
+    motor_task_event_t evt_A;
+    motor_task_event_t evt_B;
     int16_t count = 0; // for counting pulses
 
     /* Retrieve the interrupt status and the counter value from the timer that reported the interrupt */
@@ -181,8 +223,15 @@ void IRAM_ATTR isr_timer(void *para)
 		timer_group_clr_intr_status_in_isr(TIMER_GROUP_0, TIMER_1);
 
 		// get pulses
+		pcnt_get_counter_value(PCNT_UNIT_0, &count);
+		evt_A.pulses_count = count;
 		pcnt_get_counter_value(PCNT_UNIT_1, &count);
-		evt.pulses_count = count;
+		evt_B.pulses_count = count;
+
+		pcnt_counter_pause(PCNT_UNIT_0);
+		pcnt_counter_clear(PCNT_UNIT_0);
+		pcnt_counter_resume(PCNT_UNIT_0);
+
 		pcnt_counter_pause(PCNT_UNIT_1);
 		pcnt_counter_clear(PCNT_UNIT_1);
 		pcnt_counter_resume(PCNT_UNIT_1);
@@ -190,7 +239,10 @@ void IRAM_ATTR isr_timer(void *para)
 
     /* After the alarm has been triggered we need enable it again, so it is triggered the next time */
     timer_group_enable_alarm_in_isr(TIMER_GROUP_0, timer_idx);
-    xQueueSendFromISR(timer_queue, &evt, NULL); // send the event data back to the main program task
+
+    xQueueSendFromISR(task_motor_A_queue, &evt_A, NULL); // send the event data back to the main program task
+    xQueueSendFromISR(task_motor_B_queue, &evt_B, NULL); // send the event data back to the main program task
+
     timer_spinlock_give(TIMER_GROUP_0);
     return;
 }
@@ -303,10 +355,16 @@ void gpio_initialize()
 /*
  * Funcion para el control de velocidad del motor
  */
-void motorSetSpeed(signed int speed)
+void motorSetSpeed(uint8_t selection, signed int speed)
 {
 	int speed_mot_a=0;
 	int speed_mot_b=0;
+	uint8_t index=0;
+
+	if(selection == 1)
+	{
+		index=2;
+	}
 
 	if(speed>0)
 	{
@@ -317,14 +375,15 @@ void motorSetSpeed(signed int speed)
 		speed_mot_b = -speed;
 	}
 
-	ledc_set_duty(ledc_channel[0].speed_mode, ledc_channel[0].channel, speed_mot_b);
-	ledc_update_duty(ledc_channel[0].speed_mode, ledc_channel[0].channel);
-	ledc_set_duty(ledc_channel[1].speed_mode, ledc_channel[1].channel, speed_mot_a);
-	ledc_update_duty(ledc_channel[1].speed_mode, ledc_channel[1].channel);
+	ledc_set_duty(ledc_channel[index].speed_mode, ledc_channel[index].channel, speed_mot_a);
+	ledc_update_duty(ledc_channel[index].speed_mode, ledc_channel[index].channel);
+	index++;
+	ledc_set_duty(ledc_channel[index].speed_mode, ledc_channel[index].channel, speed_mot_b);
+	ledc_update_duty(ledc_channel[index].speed_mode, ledc_channel[index].channel);
 }
 
-void motorStop()
+void motorStop(uint8_t selection)
 {
-	motorSetSpeed(0);
+	motorSetSpeed(selection, 0);
 }
 

@@ -46,6 +46,8 @@
 #define MOT_1_B_GPIO	18
 #define MOT_2_A_GPIO	19
 #define MOT_2_B_GPIO	21
+#define MOT_A_SEL		0
+#define MOT_B_SEL		1
 
 // GPIO defines
 #define GPIO_READY_LED		23
@@ -103,13 +105,8 @@ ledc_channel_config_t ledc_channel[CANT_LEDC_CHANNELS] = {
 };
 
 typedef struct {
-    int type;  // the type of timer's event
-    int timer_group;
-    int timer_idx;
-    uint64_t timer_counter_value;
     int16_t pulses_count;
-    float rpm;
-} timer_event_t;
+} motor_task_event_t;
 
 // function prototypes
 void main_task(void *arg);
@@ -120,7 +117,7 @@ void pcnt_initialize(int unit, int signal_gpio_in);
 void timer_initialize(int timer_idx, bool auto_reload, double timer_interval_sec);
 void gpio_initialize();
 
-void motorSetSpeed(signed int pwm_value);
-void motorStop();
+void motorSetSpeed(uint8_t selection, signed int pwm_value);
+void motorStop(uint8_t selection);
 
 #endif /* MAIN_PID_CONTROLLER_H_ */
