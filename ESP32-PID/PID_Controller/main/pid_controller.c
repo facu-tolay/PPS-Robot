@@ -5,14 +5,10 @@
 #define ONE_TURN_DISPLACEMENT	(float)15.708 // por cada vuelta de la rueda, se avanza 2.PI.r = 2 x PI x 2.5cm = 15.708 [cm]
 #define DELTA_DISTANCE_PER_SLIT	(float)(ONE_TURN_DISPLACEMENT/CANT_RANURAS_ENCODER)// cuantos [cm] avanza por cada ranura
 
-/*#define _Kp (float)11
-#define _Ki (float)5
-#define _Kd (float)16*/
-
 #define _Kp (float)6
-#define _Ki (float)7
-#define _Kd (float)15
-#define _dt	(float)TIMER_INTERVAL_RPM_MEASURE
+#define _Ki (float)5
+#define _Kd (float)35
+#define _dt 	(float)TIMER_INTERVAL_RPM_MEASURE
 
 #define SETPOINT (float)120 // in [cm]
 
@@ -30,7 +26,6 @@ int PID_Compute(unsigned int dist_actual, unsigned int dist_destino)
 
 	if(!error)
 	{
-		//motorStop();
 		_pre_error = 0;
 		_integral = 0;
 		return 0;
@@ -77,7 +72,6 @@ int PID_Compute(unsigned int dist_actual, unsigned int dist_destino)
 			output = -MIN_PWM_VALUE;
 		}
 	}
-	//motorSetSpeed(output);
 
 	// Save error to previous error
 	_pre_error = error;
