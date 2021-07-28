@@ -38,6 +38,10 @@
 #define PCNT_INPUT_CTRL_IO  15 // Control GPIO HIGH=count up, LOW=count down
 #define PCNT_INPUT_SIG_IO_B   22  // Pulse Input GPIO
 #define PCNT_INPUT_CTRL_IO_B  15 // Control GPIO HIGH=count up, LOW=count down
+#define PCNT_INPUT_SIG_IO_C  23   // Pulse Input GPIO
+#define PCNT_INPUT_CTRL_IO_C  15 // Control GPIO HIGH=count up, LOW=count down
+#define PCNT_INPUT_SIG_IO_D   34  // Pulse Input GPIO
+#define PCNT_INPUT_CTRL_IO_D  15 // Control GPIO HIGH=count up, LOW=count down
 #define PCNT_H_LIM_VAL      10
 #define PCNT_L_LIM_VAL     -10
 

@@ -174,16 +174,115 @@ void task_motor_B(void *arg)
     }
 }
 
+void task_motor_C(void *arg)
+{
+	motor_task_event_t evt;
+	float out=0;
+	unsigned int motor_direction=0;
+
+	int16_t count_sum = 0; // for accumulating pulses
+	int16_t objective_count = SETPOINT / DELTA_DISTANCE_PER_SLIT;
+
+	vTaskDelay(200);
+	gpio_set_level(GPIO_READY_LED, 1);
+	vTaskDelay(100);
+	gpio_set_level(GPIO_READY_LED, 0);
+	vTaskDelay(100);
+	gpio_set_level(GPIO_ENABLE_MOTORS, 1);
+
+    while (1)
+    {
+    	xQueueReceive(task_motor_C_queue, &evt, portMAX_DELAY);
+
+    	if(motor_direction)
+    	{
+    		count_sum += evt.pulses_count;
+    	}
+    	else
+    	{
+    		count_sum -= evt.pulses_count;
+    	}
+    	out = PID_Compute(count_sum, objective_count);
+
+    	if(out == 0)
+    	{
+    		motorStop(MOT_C_SEL);
+    		count_sum = objective_count;
+    	}
+    	else
+    	{
+    		motorSetSpeed(MOT_C_SEL, out);
+    		motor_direction = out > 0;
+    	}
+
+    	printf("TASK_C // pulses count= %u # sum= %u # count_obj= %u # OUT= %f\n", evt.pulses_count, count_sum, objective_count, out);
+    	//vTaskDelay(100); // a veces es necesario meter un delay para dejar que otras tareas se ejecuten.
+    }
+}
+
+void task_motor_D(void *arg)
+{
+	motor_task_event_t evt;
+	float out=0;
+	unsigned int motor_direction=0;
+
+	int16_t count_sum = 0; // for accumulating pulses
+	int16_t objective_count = SETPOINT / DELTA_DISTANCE_PER_SLIT;
+
+	vTaskDelay(200);
+	gpio_set_level(GPIO_READY_LED, 1);
+	vTaskDelay(100);
+	gpio_set_level(GPIO_READY_LED, 0);
+	vTaskDelay(100);
+	gpio_set_level(GPIO_ENABLE_MOTORS, 1);
+
+    while (1)
+    {
+    	xQueueReceive(task_motor_D_queue, &evt, portMAX_DELAY);
+
+    	if(motor_direction)
+    	{
+    		count_sum += evt.pulses_count;
+    	}
+    	else
+    	{
+    		count_sum -= evt.pulses_count;
+    	}
+    	out = PID_Compute(count_sum, objective_count);
+
+    	if(out == 0)
+    	{
+    		motorStop(MOT_D_SEL);
+    		count_sum = objective_count;
+    	}
+    	else
+    	{
+    		motorSetSpeed(MOT_D_SEL, out);
+    		motor_direction = out > 0;
+    	}
+
+    	printf("TASK_D // pulses count= %u # sum= %u # count_obj= %u # OUT= %f\n", evt.pulses_count, count_sum, objective_count, out);
+    	//vTaskDelay(100); // a veces es necesario meter un delay para dejar que otras tareas se ejecuten.
+    }
+}
+
 void app_main(void)
 {
     int pcnt_unit_left = PCNT_UNIT_0;
     int pcnt_unit_right = PCNT_UNIT_1;
+    int pcnt_unit_front = PCNT_UNIT_2;	
+    int pcnt_unit_back = PCNT_UNIT_3;
+
 
     pcnt_initialize(pcnt_unit_left, PCNT_INPUT_SIG_IO_A);
     pcnt_initialize(pcnt_unit_right, PCNT_INPUT_SIG_IO_B);
+    pcnt_initialize(pcnt_unit_front, PCNT_INPUT_SIG_IO_C);
+    pcnt_initialize(pcnt_unit_back, PCNT_INPUT_SIG_IO_D);
 
     task_motor_A_queue = xQueueCreate(10, sizeof(motor_task_event_t));
     task_motor_B_queue = xQueueCreate(10, sizeof(motor_task_event_t));
+    task_motor_C_queue = xQueueCreate(10, sizeof(motor_task_event_t));
+    task_motor_D_queue = xQueueCreate(10, sizeof(motor_task_event_t));
     timer_initialize(TIMER_1, TIMER_ISR_RPM_MEASUREMENT, TIMER_INTERVAL_RPM_MEASURE);
 
     pwm_initialize();
@@ -191,6 +290,9 @@ void app_main(void)
 
     xTaskCreate(task_motor_A, "task_motor_A", 2048, NULL, 5, NULL);
     xTaskCreate(task_motor_B, "task_motor_B", 2048, NULL, 5, NULL);
+    xTaskCreate(task_motor_C, "task_motor_C", 2048, NULL, 5, NULL);
+    xTaskCreate(task_motor_D, "task_motor_D", 2048, NULL, 5, NULL);
+
 }
 
 /*
@@ -207,6 +309,8 @@ void IRAM_ATTR isr_timer(void *para)
     int timer_idx = (int) para;
     motor_task_event_t evt_A;
     motor_task_event_t evt_B;
+    motor_task_event_t evt_C;
+    motor_task_event_t evt_D;
     int16_t count = 0; // for counting pulses
 
     /* Retrieve the interrupt status and the counter value from the timer that reported the interrupt */
@@ -221,6 +325,10 @@ void IRAM_ATTR isr_timer(void *para)
 		evt_A.pulses_count = count;
 		pcnt_get_counter_value(PCNT_UNIT_1, &count);
 		evt_B.pulses_count = count;
+		pcnt_get_counter_value(PCNT_UNIT_2, &count);
+		evt_C.pulses_count = count;
+		pcnt_get_counter_value(PCNT_UNIT_3, &count);
+		evt_D.pulses_count = count;
 
 		pcnt_counter_pause(PCNT_UNIT_0);
 		pcnt_counter_clear(PCNT_UNIT_0);
@@ -229,6 +337,15 @@ void IRAM_ATTR isr_timer(void *para)
 		pcnt_counter_pause(PCNT_UNIT_1);
 		pcnt_counter_clear(PCNT_UNIT_1);
 		pcnt_counter_resume(PCNT_UNIT_1);
+
+		pcnt_counter_pause(PCNT_UNIT_2);
+		pcnt_counter_clear(PCNT_UNIT_2);
+		pcnt_counter_resume(PCNT_UNIT_2);
+
+		pcnt_counter_pause(PCNT_UNIT_3);
+		pcnt_counter_clear(PCNT_UNIT_3);
+		pcnt_counter_resume(PCNT_UNIT_3);
+
 	}
 
     /* After the alarm has been triggered we need enable it again, so it is triggered the next time */
@@ -236,6 +353,8 @@ void IRAM_ATTR isr_timer(void *para)
 
     xQueueSendFromISR(task_motor_A_queue, &evt_A, NULL); // send the event data back to the main program task
     xQueueSendFromISR(task_motor_B_queue, &evt_B, NULL); // send the event data back to the main program task
+    xQueueSendFromISR(task_motor_C_queue, &evt_C, NULL); // send the event data back to the main program task
+    xQueueSendFromISR(task_motor_D_queue, &evt_D, NULL); // send the event data back to the main program task
 
     timer_spinlock_give(TIMER_GROUP_0);
     return;
