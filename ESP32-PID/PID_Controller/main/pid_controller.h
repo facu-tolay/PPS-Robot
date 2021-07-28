@@ -48,17 +48,25 @@
 // MOTOR defines
 #define MOT_1_A_GPIO	5
 #define MOT_1_B_GPIO	18
+#define MOT_1_C_GPIO	35
+#define MOT_1_D_GPIO	33
+
 #define MOT_2_A_GPIO	19
 #define MOT_2_B_GPIO	21
+#define MOT_2_C_GPIO	32
+#define MOT_2_D_GPIO	25
+
 #define MOT_A_SEL		0
 #define MOT_B_SEL		1
+#define MOT_C_SEL		2
+#define MOT_D_SEL		3
 
 // GPIO defines
 #define GPIO_READY_LED		23
 #define GPIO_ENABLE_MOTORS	2
 
 // PWM defines
-#define CANT_LEDC_CHANNELS	4
+#define CANT_LEDC_CHANNELS	8
 
 /*
  * Prepare individual configuration
@@ -93,15 +101,47 @@ ledc_channel_config_t ledc_channel[CANT_LEDC_CHANNELS] = {
 	{
 		.channel    = LEDC_CHANNEL_2,
 		.duty       = 0,
+		.gpio_num   = MOT_1_C_GPIO,
+		.speed_mode = LEDC_HIGH_SPEED_MODE,
+		.hpoint     = 0,
+		.timer_sel  = LEDC_TIMER_0
+	},
+	{
+		.channel    = LEDC_CHANNEL_3,
+		.duty       = 0,
+		.gpio_num   = MOT_1_D_GPIO,
+		.speed_mode = LEDC_HIGH_SPEED_MODE,
+		.hpoint     = 0,
+		.timer_sel  = LEDC_TIMER_0
+	},
+	{
+		.channel    = LEDC_CHANNEL_4,
+		.duty       = 0,
 		.gpio_num   = MOT_2_A_GPIO,
 		.speed_mode = LEDC_LOW_SPEED_MODE,
 		.hpoint     = 0,
 		.timer_sel  = LEDC_TIMER_1
 	},
 	{
-		.channel    = LEDC_CHANNEL_3,
+		.channel    = LEDC_CHANNEL_5,
 		.duty       = 0,
 		.gpio_num   = MOT_2_B_GPIO,
+		.speed_mode = LEDC_LOW_SPEED_MODE,
+		.hpoint     = 0,
+		.timer_sel  = LEDC_TIMER_1
+	},
+	{
+		.channel    = LEDC_CHANNEL_6,
+		.duty       = 0,
+		.gpio_num   = MOT_2_C_GPIO,
+		.speed_mode = LEDC_LOW_SPEED_MODE,
+		.hpoint     = 0,
+		.timer_sel  = LEDC_TIMER_1
+	},
+	{
+		.channel    = LEDC_CHANNEL_7,
+		.duty       = 0,
+		.gpio_num   = MOT_2_D_GPIO,
 		.speed_mode = LEDC_LOW_SPEED_MODE,
 		.hpoint     = 0,
 		.timer_sel  = LEDC_TIMER_1
