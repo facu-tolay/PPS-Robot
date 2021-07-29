@@ -34,27 +34,26 @@
 #define TIMER_ISR_RPM_MEASUREMENT	2
 
 // ENCODER defines
-#define PCNT_INPUT_SIG_IO_A   4  // Pulse Input GPIO
-#define PCNT_INPUT_CTRL_IO  15 // Control GPIO HIGH=count up, LOW=count down
-#define PCNT_INPUT_SIG_IO_B   22  // Pulse Input GPIO
-#define PCNT_INPUT_CTRL_IO_B  15 // Control GPIO HIGH=count up, LOW=count down
-#define PCNT_INPUT_SIG_IO_C  23   // Pulse Input GPIO
-#define PCNT_INPUT_CTRL_IO_C  15 // Control GPIO HIGH=count up, LOW=count down
-#define PCNT_INPUT_SIG_IO_D   34  // Pulse Input GPIO
-#define PCNT_INPUT_CTRL_IO_D  15 // Control GPIO HIGH=count up, LOW=count down
+#define PCNT_INPUT_SIG_IO_A		4  // Pulse Input GPIO
+#define PCNT_INPUT_CTRL_IO		15 // Control GPIO HIGH=count up, LOW=count down
+#define PCNT_INPUT_SIG_IO_B		22  // Pulse Input GPIO
+#define PCNT_INPUT_CTRL_IO_B	15 // Control GPIO HIGH=count up, LOW=count down
+#define PCNT_INPUT_SIG_IO_C		27   // Pulse Input GPIO
+#define PCNT_INPUT_CTRL_IO_C	15 // Control GPIO HIGH=count up, LOW=count down
+#define PCNT_INPUT_SIG_IO_D		14  // Pulse Input GPIO
+#define PCNT_INPUT_CTRL_IO_D	15 // Control GPIO HIGH=count up, LOW=count down
 #define PCNT_H_LIM_VAL      10
 #define PCNT_L_LIM_VAL     -10
 
 // MOTOR defines
 #define MOT_1_A_GPIO	5
 #define MOT_1_B_GPIO	18
-#define MOT_1_C_GPIO	35
-#define MOT_1_D_GPIO	33
-
 #define MOT_2_A_GPIO	19
 #define MOT_2_B_GPIO	21
-#define MOT_2_C_GPIO	32
-#define MOT_2_D_GPIO	25
+#define MOT_3_A_GPIO	32
+#define MOT_3_B_GPIO	33
+#define MOT_4_A_GPIO	25
+#define MOT_4_B_GPIO	26
 
 #define MOT_A_SEL		0
 #define MOT_B_SEL		1
@@ -101,7 +100,7 @@ ledc_channel_config_t ledc_channel[CANT_LEDC_CHANNELS] = {
 	{
 		.channel    = LEDC_CHANNEL_2,
 		.duty       = 0,
-		.gpio_num   = MOT_1_C_GPIO,
+		.gpio_num   = MOT_2_A_GPIO,
 		.speed_mode = LEDC_HIGH_SPEED_MODE,
 		.hpoint     = 0,
 		.timer_sel  = LEDC_TIMER_0
@@ -109,7 +108,7 @@ ledc_channel_config_t ledc_channel[CANT_LEDC_CHANNELS] = {
 	{
 		.channel    = LEDC_CHANNEL_3,
 		.duty       = 0,
-		.gpio_num   = MOT_1_D_GPIO,
+		.gpio_num   = MOT_2_B_GPIO,
 		.speed_mode = LEDC_HIGH_SPEED_MODE,
 		.hpoint     = 0,
 		.timer_sel  = LEDC_TIMER_0
@@ -117,7 +116,7 @@ ledc_channel_config_t ledc_channel[CANT_LEDC_CHANNELS] = {
 	{
 		.channel    = LEDC_CHANNEL_4,
 		.duty       = 0,
-		.gpio_num   = MOT_2_A_GPIO,
+		.gpio_num   = MOT_3_A_GPIO,
 		.speed_mode = LEDC_LOW_SPEED_MODE,
 		.hpoint     = 0,
 		.timer_sel  = LEDC_TIMER_1
@@ -125,7 +124,7 @@ ledc_channel_config_t ledc_channel[CANT_LEDC_CHANNELS] = {
 	{
 		.channel    = LEDC_CHANNEL_5,
 		.duty       = 0,
-		.gpio_num   = MOT_2_B_GPIO,
+		.gpio_num   = MOT_3_B_GPIO,
 		.speed_mode = LEDC_LOW_SPEED_MODE,
 		.hpoint     = 0,
 		.timer_sel  = LEDC_TIMER_1
@@ -133,7 +132,7 @@ ledc_channel_config_t ledc_channel[CANT_LEDC_CHANNELS] = {
 	{
 		.channel    = LEDC_CHANNEL_6,
 		.duty       = 0,
-		.gpio_num   = MOT_2_C_GPIO,
+		.gpio_num   = MOT_4_A_GPIO,
 		.speed_mode = LEDC_LOW_SPEED_MODE,
 		.hpoint     = 0,
 		.timer_sel  = LEDC_TIMER_1
@@ -141,7 +140,7 @@ ledc_channel_config_t ledc_channel[CANT_LEDC_CHANNELS] = {
 	{
 		.channel    = LEDC_CHANNEL_7,
 		.duty       = 0,
-		.gpio_num   = MOT_2_D_GPIO,
+		.gpio_num   = MOT_4_B_GPIO,
 		.speed_mode = LEDC_LOW_SPEED_MODE,
 		.hpoint     = 0,
 		.timer_sel  = LEDC_TIMER_1

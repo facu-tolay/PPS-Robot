@@ -5,15 +5,17 @@
 #define ONE_TURN_DISPLACEMENT	(float)15.708 // por cada vuelta de la rueda, se avanza 2.PI.r = 2 x PI x 2.5cm = 15.708 [cm]
 #define DELTA_DISTANCE_PER_SLIT	(float)(ONE_TURN_DISPLACEMENT/CANT_RANURAS_ENCODER)// cuantos [cm] avanza por cada ranura
 
-#define _Kp (float)6
+#define _Kp (float)4
 #define _Ki (float)5
-#define _Kd (float)35
-#define _dt 	(float)TIMER_INTERVAL_RPM_MEASURE
+#define _Kd (float)25
+#define _dt (float)TIMER_INTERVAL_RPM_MEASURE
 
-#define SETPOINT (float)120 // in [cm]
+#define SETPOINT (float)150 // in [cm]
 
 xQueueHandle task_motor_A_queue;
 xQueueHandle task_motor_B_queue;
+xQueueHandle task_motor_C_queue;
+xQueueHandle task_motor_D_queue;
 
 /* Calculate PWM output for PID */
 int PID_Compute(unsigned int dist_actual, unsigned int dist_destino)
@@ -273,7 +275,6 @@ void app_main(void)
     int pcnt_unit_front = PCNT_UNIT_2;	
     int pcnt_unit_back = PCNT_UNIT_3;
 
-
     pcnt_initialize(pcnt_unit_left, PCNT_INPUT_SIG_IO_A);
     pcnt_initialize(pcnt_unit_right, PCNT_INPUT_SIG_IO_B);
     pcnt_initialize(pcnt_unit_front, PCNT_INPUT_SIG_IO_C);
@@ -474,9 +475,23 @@ void motorSetSpeed(uint8_t selection, signed int speed)
 	int speed_mot_b=0;
 	uint8_t index=0;
 
-	if(selection == 1)
+	switch(selection)
 	{
-		index=2;
+		case MOT_B_SEL:
+			index = 2;
+			break;
+
+		case MOT_C_SEL:
+			index = 4;
+			break;
+
+		case MOT_D_SEL:
+			index = 6;
+			break;
+
+		default:
+			index = 0;
+			break;
 	}
 
 	if(speed>0)
