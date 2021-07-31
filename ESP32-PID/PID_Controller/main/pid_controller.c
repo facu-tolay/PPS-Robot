@@ -5,9 +5,9 @@
 #define ONE_TURN_DISPLACEMENT	(float)15.708 // por cada vuelta de la rueda, se avanza 2.PI.r = 2 x PI x 2.5cm = 15.708 [cm]
 #define DELTA_DISTANCE_PER_SLIT	(float)(ONE_TURN_DISPLACEMENT/CANT_RANURAS_ENCODER)// cuantos [cm] avanza por cada ranura
 
-#define _Kp (float)4
-#define _Ki (float)5
-#define _Kd (float)25
+#define _Kp (float)10
+#define _Ki (float)3
+#define _Kd (float)10
 #define _dt (float)TIMER_INTERVAL_RPM_MEASURE
 
 #define SETPOINT (float)150 // in [cm]
@@ -17,11 +17,13 @@ xQueueHandle task_motor_B_queue;
 xQueueHandle task_motor_C_queue;
 xQueueHandle task_motor_D_queue;
 
-/* Calculate PWM output for PID */
-int PID_Compute(unsigned int dist_actual, unsigned int dist_destino)
+void PID_Compute(PID_params_t *params_in)
 {
-	static float _integral;
-	static float _pre_error;
+	float _integral = params_in -> _integral;
+	float _pre_error = params_in -> _pre_error;
+	unsigned int dist_destino = params_in -> dist_destino;
+	unsigned int dist_actual = params_in -> dist_actual;
+	float output;
 
 	// Calculate error
 	int error = dist_destino - dist_actual;
@@ -30,65 +32,66 @@ int PID_Compute(unsigned int dist_actual, unsigned int dist_destino)
 	{
 		_pre_error = 0;
 		_integral = 0;
-		return 0;
+		output = 0;
 	}
-
-	//printf("error= %d / ", error);
-	float Pout = _Kp * error; // Proportional term
-	//printf("Pout= %4.2f / ", Pout);
-
-	_integral += error * _dt; // Integral term
-	float Iout = _Ki * _integral;
-	//printf("Iout= %4.2f / ", Iout);
-
-	float derivative = (error - _pre_error) / _dt; // Derivative term
-	float Dout = _Kd * derivative;
-	//printf("Dout= %4.2f / ", Dout);
-
-	// Calculate total output
-	float output = (Pout + Iout + Dout);
-	//printf("OUT_PID= %4.2f\n", output);
-
-	// Restrict to max/min
-	if(error > 0)
+	else
 	{
-		//motor_direction = 1;
-		if(output > MAX_PWM_VALUE)
+		float Pout = _Kp * error; // Proportional term
+
+		_integral += error * _dt; // Integral term
+		float Iout = _Ki * _integral;
+
+		float derivative = (error - _pre_error) / _dt; // Derivative term
+		float Dout = _Kd * derivative;
+
+		// Calculate total output
+		output = (Pout + Iout + Dout);
+
+		// Restrict to max/min
+		if(error > 0)
 		{
-			output = MAX_PWM_VALUE;
+			if(output >= MAX_PWM_VALUE)
+			{
+				output = MAX_PWM_VALUE;
+			}
+			else if(output <= MIN_PWM_VALUE)
+			{
+				output = MIN_PWM_VALUE;
+			}
 		}
-		else if(output < MIN_PWM_VALUE)
+		else if(error < 0)
 		{
-			output = MIN_PWM_VALUE;
+			if(output <= -MAX_PWM_VALUE)
+			{
+				output = -MAX_PWM_VALUE;
+			}
+			else if(output >= -MIN_PWM_VALUE)
+			{
+				output = -MIN_PWM_VALUE;
+			}
 		}
-	}
-	else if(error < 0)
-	{
-		//motor_direction = 0;
-		if(output < -MAX_PWM_VALUE)
-		{
-			output = -MAX_PWM_VALUE;
-		}
-		else if(output > -MIN_PWM_VALUE)
-		{
-			output = -MIN_PWM_VALUE;
-		}
+
+		// Save error to previous error
+		_pre_error = error;
 	}
 
-	// Save error to previous error
-	_pre_error = error;
-
-	return output;
+	params_in -> _integral = _integral;
+	params_in -> _pre_error = _pre_error;
+	params_in -> output = output;
 }
 
-/*
- * The main task of this example program
- */
 void task_motor_A(void *arg)
 {
 	motor_task_event_t evt;
-	float out=0;
 	unsigned int motor_direction=0;
+
+	PID_params_t params = {
+			._integral = 0,
+			._pre_error = 0,
+			.dist_actual = 0,
+			.dist_destino = 0,
+			.output = 1
+	};
 
 	int16_t count_sum = 0; // for accumulating pulses
 	int16_t objective_count = SETPOINT / DELTA_DISTANCE_PER_SLIT;
@@ -100,6 +103,7 @@ void task_motor_A(void *arg)
 	vTaskDelay(100);
 	gpio_set_level(GPIO_ENABLE_MOTORS, 1);
 
+	motor_direction = objective_count > 0;
     while (1)
     {
     	xQueueReceive(task_motor_A_queue, &evt, portMAX_DELAY);
@@ -112,20 +116,23 @@ void task_motor_A(void *arg)
     	{
     		count_sum -= evt.pulses_count;
     	}
-    	out = PID_Compute(count_sum, objective_count);
+    	params.dist_actual = count_sum;
+    	params.dist_destino = objective_count;
 
-    	if(out == 0)
+    	PID_Compute(&params);
+
+    	if(params.output == 0)
     	{
     		motorStop(MOT_A_SEL);
     		count_sum = objective_count;
     	}
     	else
     	{
-    		motorSetSpeed(MOT_A_SEL, out);
-    		motor_direction = out > 0;
+    		motorSetSpeed(MOT_A_SEL, params.output);
+    		motor_direction = params.output > 0;
     	}
 
-    	printf("TASK_A // pulses count= %u # sum= %u # count_obj= %u # OUT= %f\n", evt.pulses_count, count_sum, objective_count, out);
+    	printf("TASK_A // pulses count= %u # sum= %u # count_obj= %u # OUT= %d\n", evt.pulses_count, count_sum, objective_count, params.output);
     	//vTaskDelay(100); // a veces es necesario meter un delay para dejar que otras tareas se ejecuten.
     }
 }
@@ -133,8 +140,15 @@ void task_motor_A(void *arg)
 void task_motor_B(void *arg)
 {
 	motor_task_event_t evt;
-	float out=0;
 	unsigned int motor_direction=0;
+
+	PID_params_t params = {
+			._integral = 0,
+			._pre_error = 0,
+			.dist_actual = 0,
+			.dist_destino = 0,
+			.output = 1
+	};
 
 	int16_t count_sum = 0; // for accumulating pulses
 	int16_t objective_count = SETPOINT / DELTA_DISTANCE_PER_SLIT;
@@ -146,6 +160,7 @@ void task_motor_B(void *arg)
 	vTaskDelay(100);
 	gpio_set_level(GPIO_ENABLE_MOTORS, 1);
 
+	motor_direction = objective_count > 0;
     while (1)
     {
     	xQueueReceive(task_motor_B_queue, &evt, portMAX_DELAY);
@@ -158,20 +173,23 @@ void task_motor_B(void *arg)
     	{
     		count_sum -= evt.pulses_count;
     	}
-    	out = PID_Compute(count_sum, objective_count);
+    	params.dist_actual = count_sum;
+    	params.dist_destino = objective_count;
 
-    	if(out == 0)
+    	PID_Compute(&params);
+
+    	if(params.output == 0)
     	{
     		motorStop(MOT_B_SEL);
     		count_sum = objective_count;
     	}
     	else
     	{
-    		motorSetSpeed(MOT_B_SEL, out);
-    		motor_direction = out > 0;
+    		motorSetSpeed(MOT_B_SEL, params.output);
+    		motor_direction = params.output > 0;
     	}
 
-    	printf("TASK_B // pulses count= %u # sum= %u # count_obj= %u # OUT= %f\n", evt.pulses_count, count_sum, objective_count, out);
+    	printf("TASK_B // pulses count= %u # sum= %u # count_obj= %u # OUT= %d\n", evt.pulses_count, count_sum, objective_count, params.output);
     	//vTaskDelay(100); // a veces es necesario meter un delay para dejar que otras tareas se ejecuten.
     }
 }
@@ -179,8 +197,15 @@ void task_motor_B(void *arg)
 void task_motor_C(void *arg)
 {
 	motor_task_event_t evt;
-	float out=0;
 	unsigned int motor_direction=0;
+
+	PID_params_t params = {
+			._integral = 0,
+			._pre_error = 0,
+			.dist_actual = 0,
+			.dist_destino = 0,
+			.output = 1
+	};
 
 	int16_t count_sum = 0; // for accumulating pulses
 	int16_t objective_count = SETPOINT / DELTA_DISTANCE_PER_SLIT;
@@ -192,6 +217,7 @@ void task_motor_C(void *arg)
 	vTaskDelay(100);
 	gpio_set_level(GPIO_ENABLE_MOTORS, 1);
 
+	motor_direction = objective_count > 0;
     while (1)
     {
     	xQueueReceive(task_motor_C_queue, &evt, portMAX_DELAY);
@@ -204,20 +230,23 @@ void task_motor_C(void *arg)
     	{
     		count_sum -= evt.pulses_count;
     	}
-    	out = PID_Compute(count_sum, objective_count);
+    	params.dist_actual = count_sum;
+    	params.dist_destino = objective_count;
 
-    	if(out == 0)
+    	PID_Compute(&params);
+
+    	if(params.output == 0)
     	{
     		motorStop(MOT_C_SEL);
     		count_sum = objective_count;
     	}
     	else
     	{
-    		motorSetSpeed(MOT_C_SEL, out);
-    		motor_direction = out > 0;
+    		motorSetSpeed(MOT_C_SEL, params.output);
+    		motor_direction = params.output > 0;
     	}
 
-    	printf("TASK_C // pulses count= %u # sum= %u # count_obj= %u # OUT= %f\n", evt.pulses_count, count_sum, objective_count, out);
+    	printf("TASK_C // pulses count= %u # sum= %u # count_obj= %u # OUT= %d\n", evt.pulses_count, count_sum, objective_count, params.output);
     	//vTaskDelay(100); // a veces es necesario meter un delay para dejar que otras tareas se ejecuten.
     }
 }
@@ -225,8 +254,15 @@ void task_motor_C(void *arg)
 void task_motor_D(void *arg)
 {
 	motor_task_event_t evt;
-	float out=0;
 	unsigned int motor_direction=0;
+
+	PID_params_t params = {
+			._integral = 0,
+			._pre_error = 0,
+			.dist_actual = 0,
+			.dist_destino = 0,
+			.output = 1
+	};
 
 	int16_t count_sum = 0; // for accumulating pulses
 	int16_t objective_count = SETPOINT / DELTA_DISTANCE_PER_SLIT;
@@ -238,6 +274,7 @@ void task_motor_D(void *arg)
 	vTaskDelay(100);
 	gpio_set_level(GPIO_ENABLE_MOTORS, 1);
 
+	motor_direction = objective_count > 0;
     while (1)
     {
     	xQueueReceive(task_motor_D_queue, &evt, portMAX_DELAY);
@@ -250,20 +287,23 @@ void task_motor_D(void *arg)
     	{
     		count_sum -= evt.pulses_count;
     	}
-    	out = PID_Compute(count_sum, objective_count);
+    	params.dist_actual = count_sum;
+    	params.dist_destino = objective_count;
 
-    	if(out == 0)
+    	PID_Compute(&params);
+
+    	if(params.output == 0)
     	{
     		motorStop(MOT_D_SEL);
     		count_sum = objective_count;
     	}
     	else
     	{
-    		motorSetSpeed(MOT_D_SEL, out);
-    		motor_direction = out > 0;
+    		motorSetSpeed(MOT_D_SEL, params.output);
+    		motor_direction = params.output > 0;
     	}
 
-    	printf("TASK_D // pulses count= %u # sum= %u # count_obj= %u # OUT= %f\n", evt.pulses_count, count_sum, objective_count, out);
+    	printf("TASK_D // pulses count= %u # sum= %u # count_obj= %u # OUT= %d\n", evt.pulses_count, count_sum, objective_count, params.output);
     	//vTaskDelay(100); // a veces es necesario meter un delay para dejar que otras tareas se ejecuten.
     }
 }
@@ -293,7 +333,6 @@ void app_main(void)
     xTaskCreate(task_motor_B, "task_motor_B", 2048, NULL, 5, NULL);
     xTaskCreate(task_motor_C, "task_motor_C", 2048, NULL, 5, NULL);
     xTaskCreate(task_motor_D, "task_motor_D", 2048, NULL, 5, NULL);
-
 }
 
 /*
@@ -312,7 +351,10 @@ void IRAM_ATTR isr_timer(void *para)
     motor_task_event_t evt_B;
     motor_task_event_t evt_C;
     motor_task_event_t evt_D;
-    int16_t count = 0; // for counting pulses
+    int16_t count_A = 0; // for counting pulses
+    int16_t count_B = 0; // for counting pulses
+    int16_t count_C = 0; // for counting pulses
+    int16_t count_D = 0; // for counting pulses
 
     /* Retrieve the interrupt status and the counter value from the timer that reported the interrupt */
     uint32_t timer_intr = timer_group_get_intr_status_in_isr(TIMER_GROUP_0);
@@ -322,14 +364,14 @@ void IRAM_ATTR isr_timer(void *para)
 		timer_group_clr_intr_status_in_isr(TIMER_GROUP_0, TIMER_1);
 
 		// get pulses
-		pcnt_get_counter_value(PCNT_UNIT_0, &count);
-		evt_A.pulses_count = count;
-		pcnt_get_counter_value(PCNT_UNIT_1, &count);
-		evt_B.pulses_count = count;
-		pcnt_get_counter_value(PCNT_UNIT_2, &count);
-		evt_C.pulses_count = count;
-		pcnt_get_counter_value(PCNT_UNIT_3, &count);
-		evt_D.pulses_count = count;
+		pcnt_get_counter_value(PCNT_UNIT_0, &count_A);
+		evt_A.pulses_count = count_A;
+		pcnt_get_counter_value(PCNT_UNIT_1, &count_B);
+		evt_B.pulses_count = count_B;
+		pcnt_get_counter_value(PCNT_UNIT_2, &count_C);
+		evt_C.pulses_count = count_C;
+		pcnt_get_counter_value(PCNT_UNIT_3, &count_D);
+		evt_D.pulses_count = count_D;
 
 		pcnt_counter_pause(PCNT_UNIT_0);
 		pcnt_counter_clear(PCNT_UNIT_0);
@@ -346,7 +388,6 @@ void IRAM_ATTR isr_timer(void *para)
 		pcnt_counter_pause(PCNT_UNIT_3);
 		pcnt_counter_clear(PCNT_UNIT_3);
 		pcnt_counter_resume(PCNT_UNIT_3);
-
 	}
 
     /* After the alarm has been triggered we need enable it again, so it is triggered the next time */
@@ -477,6 +518,8 @@ void motorSetSpeed(uint8_t selection, signed int speed)
 
 	switch(selection)
 	{
+		case MOT_A_SEL:
+			break;
 		case MOT_B_SEL:
 			index = 2;
 			break;
