@@ -28,22 +28,15 @@
 #define MAX_PWM_VALUE		8191
 
 // TIMER defines
-#define TIMER_DIVIDER          16  //  Hardware timer clock divider
-#define TIMER_SCALE            (TIMER_BASE_CLK / TIMER_DIVIDER)  // convert counter value to seconds
+#define TIMER_DIVIDER				16  //  Hardware timer clock divider
+#define TIMER_SCALE					(TIMER_BASE_CLK / TIMER_DIVIDER)  // convert counter value to seconds
 #define TIMER_INTERVAL_RPM_MEASURE	(0.15)  // sample test interval for the second timer
-#define TIMER_ISR_RPM_MEASUREMENT	2
 
 // ENCODER defines
-#define PCNT_INPUT_SIG_IO_A		4  // Pulse Input GPIO
-#define PCNT_INPUT_CTRL_IO		15 // Control GPIO HIGH=count up, LOW=count down
-#define PCNT_INPUT_SIG_IO_B		22  // Pulse Input GPIO
-#define PCNT_INPUT_CTRL_IO_B	15 // Control GPIO HIGH=count up, LOW=count down
-#define PCNT_INPUT_SIG_IO_C		27   // Pulse Input GPIO
-#define PCNT_INPUT_CTRL_IO_C	15 // Control GPIO HIGH=count up, LOW=count down
-#define PCNT_INPUT_SIG_IO_D		14  // Pulse Input GPIO
-#define PCNT_INPUT_CTRL_IO_D	15 // Control GPIO HIGH=count up, LOW=count down
-#define PCNT_H_LIM_VAL      10
-#define PCNT_L_LIM_VAL     -10
+#define PCNT_INPUT_SIG_IO_A		4	// Pulse Input GPIO
+#define PCNT_INPUT_SIG_IO_B		22	// Pulse Input GPIO
+#define PCNT_INPUT_SIG_IO_C		27	// Pulse Input GPIO
+#define PCNT_INPUT_SIG_IO_D		14	// Pulse Input GPIO
 
 // MOTOR defines
 #define MOT_1_A_GPIO	5
@@ -148,6 +141,12 @@ ledc_channel_config_t ledc_channel[CANT_LEDC_CHANNELS] = {
 };
 
 typedef struct {
+    uint8_t assigned_motor;
+    xQueueHandle *rpm_count_rcv_queue;
+    char *task_name;
+} task_params_t;
+
+typedef struct {
     int16_t pulses_count;
 } motor_task_event_t;
 
@@ -158,6 +157,7 @@ typedef struct {
 	float _pre_error;
 	int output;
 } PID_params_t;
+
 
 // function prototypes
 void main_task(void *arg);
