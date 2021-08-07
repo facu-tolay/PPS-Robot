@@ -30,19 +30,23 @@
 // TIMER defines
 #define TIMER_DIVIDER				16  //  Hardware timer clock divider
 #define TIMER_SCALE					(TIMER_BASE_CLK / TIMER_DIVIDER)  // convert counter value to seconds
-#define TIMER_INTERVAL_RPM_MEASURE	(0.15)  // sample test interval for the second timer
+#define TIMER_INTERVAL_RPM_MEASURE	(0.15) // intervalo de interrupcion - expresado en [s]
+
+// GPIO defines
+#define GPIO_READY_LED		23
+#define GPIO_ENABLE_MOTORS	2
 
 // ENCODER defines
 #define PCNT_INPUT_SIG_IO_A		4	// Pulse Input GPIO
 #define PCNT_INPUT_SIG_IO_B		22	// Pulse Input GPIO
-#define PCNT_INPUT_SIG_IO_C		27	// Pulse Input GPIO
-#define PCNT_INPUT_SIG_IO_D		14	// Pulse Input GPIO
+#define PCNT_INPUT_SIG_IO_C		14	// Pulse Input GPIO
+#define PCNT_INPUT_SIG_IO_D		27	// Pulse Input GPIO
 
 // MOTOR defines
 #define MOT_1_A_GPIO	5
 #define MOT_1_B_GPIO	18
-#define MOT_2_A_GPIO	19
-#define MOT_2_B_GPIO	21
+#define MOT_2_A_GPIO	21
+#define MOT_2_B_GPIO	19
 #define MOT_3_A_GPIO	32
 #define MOT_3_B_GPIO	33
 #define MOT_4_A_GPIO	25
@@ -53,26 +57,9 @@
 #define MOT_C_SEL		2
 #define MOT_D_SEL		3
 
-// GPIO defines
-#define GPIO_READY_LED		23
-#define GPIO_ENABLE_MOTORS	2
-
 // PWM defines
 #define CANT_LEDC_CHANNELS	8
 
-/*
- * Prepare individual configuration
- * for each channel of LED Controller
- * by selecting:
- * - controller's channel number
- * - output duty cycle, set initially to 0
- * - GPIO number where LED is connected to
- * - speed mode, either high or low
- * - timer servicing selected channel
- *   Note: if different channels use one timer,
- *         then frequency and bit_num of these channels
- *         will be the same
- */
 ledc_channel_config_t ledc_channel[CANT_LEDC_CHANNELS] = {
 	{
 		.channel    = LEDC_CHANNEL_0,
@@ -144,6 +131,7 @@ typedef struct {
     uint8_t assigned_motor;
     xQueueHandle *rpm_count_rcv_queue;
     char *task_name;
+    int16_t setpoint;
 } task_params_t;
 
 typedef struct {
@@ -157,7 +145,6 @@ typedef struct {
 	float _pre_error;
 	int output;
 } PID_params_t;
-
 
 // function prototypes
 void main_task(void *arg);

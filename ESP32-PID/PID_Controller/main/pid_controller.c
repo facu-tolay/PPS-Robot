@@ -5,9 +5,9 @@
 #define ONE_TURN_DISPLACEMENT	(float)15.708 // por cada vuelta de la rueda, se avanza 2.PI.r = 2 x PI x 2.5cm = 15.708 [cm]
 #define DELTA_DISTANCE_PER_SLIT	(float)(ONE_TURN_DISPLACEMENT/CANT_RANURAS_ENCODER)// cuantos [cm] avanza por cada ranura
 
-#define _Kp (float)10
-#define _Ki (float)3
-#define _Kd (float)10
+#define _Kp (float)13
+#define _Ki (float)3.25
+#define _Kd (float)18
 #define _dt (float)TIMER_INTERVAL_RPM_MEASURE
 
 #define SETPOINT (float)120 // in [cm]
@@ -85,13 +85,13 @@ void PID_Compute(PID_params_t *params_in)
 	params_in -> output = output;
 }
 
-void task_motor_gen(void *arg)
+void task_motor_generic(void *arg)
 {
 	task_params_t *task_params = (task_params_t *) arg;
 	motor_task_event_t evt;
 
 	int16_t count_sum = 0; // for accumulating pulses
-	int16_t objective_count = SETPOINT / DELTA_DISTANCE_PER_SLIT;
+	int16_t objective_count = (task_params->setpoint) / DELTA_DISTANCE_PER_SLIT;
 	unsigned int motor_direction = objective_count > 0;
 
 	PID_params_t params = {
@@ -142,234 +142,6 @@ void task_motor_gen(void *arg)
     }
 }
 
-void task_motor_A(void *arg)
-{
-	motor_task_event_t evt;
-	unsigned int motor_direction=0;
-
-	PID_params_t params = {
-			._integral = 0,
-			._pre_error = 0,
-			.dist_actual = 0,
-			.dist_destino = 0,
-			.output = 1
-	};
-
-	int16_t count_sum = 0; // for accumulating pulses
-	int16_t objective_count = SETPOINT / DELTA_DISTANCE_PER_SLIT;
-
-	vTaskDelay(200);
-	gpio_set_level(GPIO_READY_LED, 1);
-	vTaskDelay(100);
-	gpio_set_level(GPIO_READY_LED, 0);
-	vTaskDelay(100);
-	gpio_set_level(GPIO_ENABLE_MOTORS, 1);
-
-	motor_direction = objective_count > 0;
-    while (1)
-    {
-    	xQueueReceive(task_motor_A_queue, &evt, portMAX_DELAY);
-
-    	if(motor_direction)
-    	{
-    		count_sum += evt.pulses_count;
-    	}
-    	else
-    	{
-    		count_sum -= evt.pulses_count;
-    	}
-    	params.dist_actual = count_sum;
-    	params.dist_destino = objective_count;
-
-    	PID_Compute(&params);
-
-    	if(params.output == 0)
-    	{
-    		motorStop(MOT_A_SEL);
-    		count_sum = objective_count;
-    	}
-    	else
-    	{
-    		motorSetSpeed(MOT_A_SEL, params.output);
-    		motor_direction = params.output > 0;
-    	}
-
-    	printf("TASK_A // pulses count= %u # sum= %u # count_obj= %u # OUT= %d\n", evt.pulses_count, count_sum, objective_count, params.output);
-    	//vTaskDelay(100); // a veces es necesario meter un delay para dejar que otras tareas se ejecuten.
-    }
-}
-
-void task_motor_B(void *arg)
-{
-	motor_task_event_t evt;
-	unsigned int motor_direction=0;
-
-	PID_params_t params = {
-			._integral = 0,
-			._pre_error = 0,
-			.dist_actual = 0,
-			.dist_destino = 0,
-			.output = 1
-	};
-
-	int16_t count_sum = 0; // for accumulating pulses
-	int16_t objective_count = SETPOINT / DELTA_DISTANCE_PER_SLIT;
-
-	vTaskDelay(200);
-	gpio_set_level(GPIO_READY_LED, 1);
-	vTaskDelay(100);
-	gpio_set_level(GPIO_READY_LED, 0);
-	vTaskDelay(100);
-	gpio_set_level(GPIO_ENABLE_MOTORS, 1);
-
-	motor_direction = objective_count > 0;
-    while (1)
-    {
-    	xQueueReceive(task_motor_B_queue, &evt, portMAX_DELAY);
-
-    	if(motor_direction)
-    	{
-    		count_sum += evt.pulses_count;
-    	}
-    	else
-    	{
-    		count_sum -= evt.pulses_count;
-    	}
-    	params.dist_actual = count_sum;
-    	params.dist_destino = objective_count;
-
-    	PID_Compute(&params);
-
-    	if(params.output == 0)
-    	{
-    		motorStop(MOT_B_SEL);
-    		count_sum = objective_count;
-    	}
-    	else
-    	{
-    		motorSetSpeed(MOT_B_SEL, params.output);
-    		motor_direction = params.output > 0;
-    	}
-
-    	printf("TASK_B // pulses count= %u # sum= %u # count_obj= %u # OUT= %d\n", evt.pulses_count, count_sum, objective_count, params.output);
-    	//vTaskDelay(100); // a veces es necesario meter un delay para dejar que otras tareas se ejecuten.
-    }
-}
-
-void task_motor_C(void *arg)
-{
-	motor_task_event_t evt;
-	unsigned int motor_direction=0;
-
-	PID_params_t params = {
-			._integral = 0,
-			._pre_error = 0,
-			.dist_actual = 0,
-			.dist_destino = 0,
-			.output = 1
-	};
-
-	int16_t count_sum = 0; // for accumulating pulses
-	int16_t objective_count = SETPOINT / DELTA_DISTANCE_PER_SLIT;
-
-	vTaskDelay(200);
-	gpio_set_level(GPIO_READY_LED, 1);
-	vTaskDelay(100);
-	gpio_set_level(GPIO_READY_LED, 0);
-	vTaskDelay(100);
-	gpio_set_level(GPIO_ENABLE_MOTORS, 1);
-
-	motor_direction = objective_count > 0;
-    while (1)
-    {
-    	xQueueReceive(task_motor_C_queue, &evt, portMAX_DELAY);
-
-    	if(motor_direction)
-    	{
-    		count_sum += evt.pulses_count;
-    	}
-    	else
-    	{
-    		count_sum -= evt.pulses_count;
-    	}
-    	params.dist_actual = count_sum;
-    	params.dist_destino = objective_count;
-
-    	PID_Compute(&params);
-
-    	if(params.output == 0)
-    	{
-    		motorStop(MOT_C_SEL);
-    		count_sum = objective_count;
-    	}
-    	else
-    	{
-    		motorSetSpeed(MOT_C_SEL, params.output);
-    		motor_direction = params.output > 0;
-    	}
-
-    	printf("TASK_C // pulses count= %u # sum= %u # count_obj= %u # OUT= %d\n", evt.pulses_count, count_sum, objective_count, params.output);
-    	//vTaskDelay(100); // a veces es necesario meter un delay para dejar que otras tareas se ejecuten.
-    }
-}
-
-void task_motor_D(void *arg)
-{
-	motor_task_event_t evt;
-	unsigned int motor_direction=0;
-
-	PID_params_t params = {
-			._integral = 0,
-			._pre_error = 0,
-			.dist_actual = 0,
-			.dist_destino = 0,
-			.output = 1
-	};
-
-	int16_t count_sum = 0; // for accumulating pulses
-	int16_t objective_count = SETPOINT / DELTA_DISTANCE_PER_SLIT;
-
-	vTaskDelay(200);
-	gpio_set_level(GPIO_READY_LED, 1);
-	vTaskDelay(100);
-	gpio_set_level(GPIO_READY_LED, 0);
-	vTaskDelay(100);
-	gpio_set_level(GPIO_ENABLE_MOTORS, 1);
-
-	motor_direction = objective_count > 0;
-    while (1)
-    {
-    	xQueueReceive(task_motor_D_queue, &evt, portMAX_DELAY);
-
-    	if(motor_direction)
-    	{
-    		count_sum += evt.pulses_count;
-    	}
-    	else
-    	{
-    		count_sum -= evt.pulses_count;
-    	}
-    	params.dist_actual = count_sum;
-    	params.dist_destino = objective_count;
-
-    	PID_Compute(&params);
-
-    	if(params.output == 0)
-    	{
-    		motorStop(MOT_D_SEL);
-    		count_sum = objective_count;
-    	}
-    	else
-    	{
-    		motorSetSpeed(MOT_D_SEL, params.output);
-    		motor_direction = params.output > 0;
-    	}
-
-    	printf("TASK_D // pulses count= %u # sum= %u # count_obj= %u # OUT= %d\n", evt.pulses_count, count_sum, objective_count, params.output);
-    	//vTaskDelay(100); // a veces es necesario meter un delay para dejar que otras tareas se ejecuten.
-    }
-}
-
 void app_main(void)
 {
     int pcnt_unit_left = PCNT_UNIT_0;
@@ -393,30 +165,29 @@ void app_main(void)
 
     // generic task generation
     task_params_A.assigned_motor = MOT_A_SEL;
+    task_params_A.setpoint = SETPOINT;
     task_params_A.rpm_count_rcv_queue = &task_motor_A_queue;
     task_params_A.task_name = "TASK_Agen";
 
     task_params_B.assigned_motor = MOT_B_SEL;
+    task_params_B.setpoint = -SETPOINT;
 	task_params_B.rpm_count_rcv_queue = &task_motor_B_queue;
 	task_params_B.task_name = "TASK_Bgen";
 
 	task_params_C.assigned_motor = MOT_C_SEL;
+	task_params_C.setpoint = SETPOINT;
 	task_params_C.rpm_count_rcv_queue = &task_motor_C_queue;
 	task_params_C.task_name = "TASK_Cgen";
 
 	task_params_D.assigned_motor = MOT_D_SEL;
+	task_params_D.setpoint = -SETPOINT;
 	task_params_D.rpm_count_rcv_queue = &task_motor_D_queue;
 	task_params_D.task_name = "TASK_Dgen";
 
-    xTaskCreate(task_motor_gen, "task_motor_gen", 2048, (void *)&task_params_A, 5, NULL);
-    xTaskCreate(task_motor_gen, "task_motor_gen", 2048, (void *)&task_params_B, 5, NULL);
-    xTaskCreate(task_motor_gen, "task_motor_gen", 2048, (void *)&task_params_C, 5, NULL);
-    xTaskCreate(task_motor_gen, "task_motor_gen", 2048, (void *)&task_params_D, 5, NULL);
-
-    //xTaskCreate(task_motor_A, "task_motor_A", 2048, NULL, 5, NULL);
-    /*xTaskCreate(task_motor_B, "task_motor_B", 2048, NULL, 5, NULL);
-    xTaskCreate(task_motor_C, "task_motor_C", 2048, NULL, 5, NULL);
-    xTaskCreate(task_motor_D, "task_motor_D", 2048, NULL, 5, NULL);*/
+    xTaskCreate(task_motor_generic, "task_motor_gen", 2048, (void *)&task_params_A, 5, NULL);
+    xTaskCreate(task_motor_generic, "task_motor_gen", 2048, (void *)&task_params_B, 5, NULL);
+    xTaskCreate(task_motor_generic, "task_motor_gen", 2048, (void *)&task_params_C, 5, NULL);
+    xTaskCreate(task_motor_generic, "task_motor_gen", 2048, (void *)&task_params_D, 5, NULL);
 }
 
 /*
