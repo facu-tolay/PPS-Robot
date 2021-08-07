@@ -5,9 +5,9 @@
 #define ONE_TURN_DISPLACEMENT	(float)15.708 // por cada vuelta de la rueda, se avanza 2.PI.r = 2 x PI x 2.5cm = 15.708 [cm]
 #define DELTA_DISTANCE_PER_SLIT	(float)(ONE_TURN_DISPLACEMENT/CANT_RANURAS_ENCODER)// cuantos [cm] avanza por cada ranura
 
-#define _Kp (float)13
-#define _Ki (float)3.25
-#define _Kd (float)18
+#define _Kp (float)15
+#define _Ki (float)6
+#define _Kd (float)15
 #define _dt (float)TIMER_INTERVAL_RPM_MEASURE
 
 #define SETPOINT (float)120 // in [cm]
@@ -137,7 +137,7 @@ void task_motor_generic(void *arg)
     		motor_direction = params.output > 0;
     	}
 
-    	printf("%s // pulses count= %u # sum= %u # count_obj= %u # OUT= %d\n", task_params->task_name, evt.pulses_count, count_sum, objective_count, params.output);
+    	printf("%s // pulses count= %d # sum= %d # count_obj= %d # OUT= %d\n", task_params->task_name, evt.pulses_count, count_sum, objective_count, params.output);
     	//vTaskDelay(100); // a veces es necesario meter un delay para dejar que otras tareas se ejecuten.
     }
 }
@@ -170,7 +170,7 @@ void app_main(void)
     task_params_A.task_name = "TASK_Agen";
 
     task_params_B.assigned_motor = MOT_B_SEL;
-    task_params_B.setpoint = -SETPOINT;
+    task_params_B.setpoint = 0;
 	task_params_B.rpm_count_rcv_queue = &task_motor_B_queue;
 	task_params_B.task_name = "TASK_Bgen";
 
@@ -180,7 +180,7 @@ void app_main(void)
 	task_params_C.task_name = "TASK_Cgen";
 
 	task_params_D.assigned_motor = MOT_D_SEL;
-	task_params_D.setpoint = -SETPOINT;
+	task_params_D.setpoint = 0;
 	task_params_D.rpm_count_rcv_queue = &task_motor_D_queue;
 	task_params_D.task_name = "TASK_Dgen";
 

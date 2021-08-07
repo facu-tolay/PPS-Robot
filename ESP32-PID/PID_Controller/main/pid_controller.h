@@ -24,8 +24,14 @@
 #define INCLUDE_vTaskDelay 1
 
 // PWM defines
-#define MIN_PWM_VALUE		2000
-#define MAX_PWM_VALUE		8191
+#define MIN_PWM_VALUE	2000
+#define MAX_PWM_VALUE	8191
+
+#define PWM_LEVEL_1		MIN_PWM_VALUE
+#define PWM_LEVEL_2		4500
+#define PWM_LEVEL_3		5000
+#define PWM_LEVEL_4		6500
+#define PWM_LEVEL_5		MAX_PWM_VALUE
 
 // TIMER defines
 #define TIMER_DIVIDER				16  //  Hardware timer clock divider
@@ -149,8 +155,6 @@ typedef struct {
 // function prototypes
 void main_task(void *arg);
 void PID_Compute(PID_params_t *params_in);
-int PID_Compute_A(unsigned int dist_actual, unsigned int dist_destino);
-int PID_Compute_B(unsigned int dist_actual, unsigned int dist_destino);
 
 void pwm_initialize();
 void pcnt_initialize(int unit, int signal_gpio_in);
@@ -159,5 +163,5 @@ void gpio_initialize();
 
 void motorSetSpeed(uint8_t selection, signed int pwm_value);
 void motorStop(uint8_t selection);
-
+int16_t bound_values(int16_t input);
 #endif /* MAIN_PID_CONTROLLER_H_ */
