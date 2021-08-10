@@ -1,8 +1,8 @@
 #include "pid_controller.h"
 
-#define WHEEL_DIAMETER			(float)5.08 // 2 pulgadas - expresado en [cm]
+#define WHEEL_DIAMETER		(float)5.08 // 2 pulgadas - expresado en [cm]
 #define CANT_RANURAS_ENCODER	(float)24
-#define ONE_TURN_DISPLACEMENT	(float)15.708 // por cada vuelta de la rueda, se avanza 2.PI.r = 2 x PI x 2.5cm = 15.708 [cm]
+#define ONE_TURN_DISPLACEMENT	(float)15.9593 // por cada vuelta de la rueda, se avanza 2.PI.r = PI x 5.08cm = 15.9593[cm]
 #define DELTA_DISTANCE_PER_SLIT	(float)(ONE_TURN_DISPLACEMENT/CANT_RANURAS_ENCODER)// cuantos [cm] avanza por cada ranura
 
 #define _Kp (float)15
