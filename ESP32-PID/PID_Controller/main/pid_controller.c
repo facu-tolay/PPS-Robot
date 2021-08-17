@@ -28,6 +28,7 @@ void PID_Compute(PID_params_t *params_in)
 	float _pre_error = params_in -> _pre_error;
 	unsigned int dist_destino = params_in -> dist_destino;
 	unsigned int dist_actual = params_in -> dist_actual;
+	int prop_sensor = params_in -> sensor_count;
 	float output;
 
 	// Calculate error
@@ -50,7 +51,7 @@ void PID_Compute(PID_params_t *params_in)
 		float Dout = _Kd * derivative;
 
 		// Calculate total output
-		output = (Pout + Iout + Dout);
+		output = (Pout + Iout + Dout) + Pline;
 
 		// Restrict to max/min
 		if(error > 0)
@@ -95,10 +96,12 @@ void task_motor_generic(void *arg)
 	unsigned int motor_direction = objective_count > 0;
 
 	PID_params_t params = {
+			,motor_id = 0,
 			._integral = 0,
 			._pre_error = 0,
 			.dist_actual = 0,
 			.dist_destino = 0,
+			.prop_sensor = 0,
 			.output = 1
 	};
 
@@ -123,6 +126,8 @@ void task_motor_generic(void *arg)
     	}
     	params.dist_actual = count_sum;
     	params.dist_destino = objective_count;
+		params.prop_sensor = evt.sensor_count;
+		params.motor_id = evt.assigned_motor;
 
     	PID_Compute(&params);
 
@@ -148,11 +153,17 @@ void app_main(void)
     int pcnt_unit_right = PCNT_UNIT_1;
     int pcnt_unit_front = PCNT_UNIT_2;	
     int pcnt_unit_back = PCNT_UNIT_3;
+    int pcnt_sensor_middle = PCNT_UNIT_4;
+    int pcnt_sensor_right = PCNT_UNIT_5;
+    int pcnt_sensor_left = PCNT_UNIT_6;
 
     pcnt_initialize(pcnt_unit_left, PCNT_INPUT_SIG_IO_A);
     pcnt_initialize(pcnt_unit_right, PCNT_INPUT_SIG_IO_B);
     pcnt_initialize(pcnt_unit_front, PCNT_INPUT_SIG_IO_C);
     pcnt_initialize(pcnt_unit_back, PCNT_INPUT_SIG_IO_D);
+    pcnt_initialize(pcnt_sensor_middle, PNCT_INPUT_SENSOR_1);
+    pcnt_initialize(pcnt_sensor_right, PNCT_INPUT_SENSOR_2);
+    pcnt_initialize(pcnt_sensor_left, PNCT_INPUT_SENSOR_3);
 
     task_motor_A_queue = xQueueCreate(10, sizeof(motor_task_event_t));
     task_motor_B_queue = xQueueCreate(10, sizeof(motor_task_event_t));
@@ -202,15 +213,11 @@ void IRAM_ATTR isr_timer(void *para)
 {
     timer_spinlock_take(TIMER_GROUP_0);
     int timer_idx = (int) para;
-    motor_task_event_t evt_A;
-    motor_task_event_t evt_B;
-    motor_task_event_t evt_C;
-    motor_task_event_t evt_D;
-    int16_t count_A = 0; // for counting pulses
-    int16_t count_B = 0; // for counting pulses
-    int16_t count_C = 0; // for counting pulses
-    int16_t count_D = 0; // for counting pulses
-
+    motor_task_event_t evt_A = 0;
+    motor_task_event_t evt_B = 0;
+    motor_task_event_t evt_C = 0;
+    motor_task_event_t evt_D = 0;
+	int16_t middle_sensor = 0;
     /* Retrieve the interrupt status and the counter value from the timer that reported the interrupt */
     uint32_t timer_intr = timer_group_get_intr_status_in_isr(TIMER_GROUP_0);
 
@@ -219,30 +226,24 @@ void IRAM_ATTR isr_timer(void *para)
 		timer_group_clr_intr_status_in_isr(TIMER_GROUP_0, TIMER_1);
 
 		// get pulses
-		pcnt_get_counter_value(PCNT_UNIT_0, &count_A);
-		evt_A.pulses_count = count_A;
-		pcnt_get_counter_value(PCNT_UNIT_1, &count_B);
-		evt_B.pulses_count = count_B;
-		pcnt_get_counter_value(PCNT_UNIT_2, &count_C);
-		evt_C.pulses_count = count_C;
-		pcnt_get_counter_value(PCNT_UNIT_3, &count_D);
-		evt_D.pulses_count = count_D;
-
-		pcnt_counter_pause(PCNT_UNIT_0);
-		pcnt_counter_clear(PCNT_UNIT_0);
-		pcnt_counter_resume(PCNT_UNIT_0);
-
-		pcnt_counter_pause(PCNT_UNIT_1);
-		pcnt_counter_clear(PCNT_UNIT_1);
-		pcnt_counter_resume(PCNT_UNIT_1);
-
-		pcnt_counter_pause(PCNT_UNIT_2);
-		pcnt_counter_clear(PCNT_UNIT_2);
-		pcnt_counter_resume(PCNT_UNIT_2);
-
-		pcnt_counter_pause(PCNT_UNIT_3);
-		pcnt_counter_clear(PCNT_UNIT_3);
-		pcnt_counter_resume(PCNT_UNIT_3);
+		pcnt_get_counter_value(PCNT_UNIT_0, &evt_A.pulses_count);
+		pcnt_get_counter_value(PCNT_UNIT_1, &evt_B.pulses_count);
+		pcnt_get_counter_value(PCNT_UNIT_2, &evt_C.pulses_count);
+		pcnt_get_counter_value(PCNT_UNIT_3, &evt_D.pulses_count);
+		// get sensors pulses
+		pcnt_get_counter_value(PCNT_UNIT_5, &middle_sensor);
+		if(middle_sensor)
+		{
+			pcnt_get_counter_value(PCNT_UNIT_4, &evt_B.sensor_count);
+			pcnt_get_counter_value(PCNT_UNIT_6, &evt_D.sensor_count);
+		}
+		counter_rutine(PCNT_UNIT_0);
+		counter_rutine(PCNT_UNIT_1);
+		counter_rutine(PCNT_UNIT_2);
+		counter_rutine(PCNT_UNIT_3);
+		counter_rutine(PCNT_UNIT_4);
+		counter_rutine(PCNT_UNIT_5);
+		counter_rutine(PCNT_UNIT_6);
 	}
 
     /* After the alarm has been triggered we need enable it again, so it is triggered the next time */
@@ -257,6 +258,14 @@ void IRAM_ATTR isr_timer(void *para)
     return;
 }
 
+void counter_rutine(uint8_t pcnt)
+{
+	pcnt_counter_pause(pcnt);
+	pcnt_counter_clear(pcnt);
+	pcnt_counter_resume(pcnt);
+
+	return;
+}
 /*
  * Initialize selected timer of the timer group 0
  *

@@ -48,6 +48,11 @@
 #define PCNT_INPUT_SIG_IO_C		14	// Pulse Input GPIO
 #define PCNT_INPUT_SIG_IO_D		27	// Pulse Input GPIO
 
+// SENSORES defines
+#define PNCT_INPUT_SENSOR_1		39
+#define PNCT_INPUT_SENSOR_2		34	
+#define PNCT_INPUT_SENSOR_3		35
+
 // MOTOR defines
 #define MOT_1_A_GPIO	5
 #define MOT_1_B_GPIO	18
@@ -142,11 +147,14 @@ typedef struct {
 
 typedef struct {
     int16_t pulses_count;
+	int16_t sensor_count;
 } motor_task_event_t;
 
 typedef struct {
+	uint8_t motor_id;
 	unsigned int dist_actual;
 	unsigned int dist_destino;
+	int prop_sensor;
 	float _integral;
 	float _pre_error;
 	int output;
@@ -164,4 +172,5 @@ void gpio_initialize();
 void motorSetSpeed(uint8_t selection, signed int pwm_value);
 void motorStop(uint8_t selection);
 int16_t bound_values(int16_t input);
+void counter_rutine(uint8_t pcnt);
 #endif /* MAIN_PID_CONTROLLER_H_ */
