@@ -139,14 +139,14 @@ ledc_channel_config_t ledc_channel[CANT_LEDC_CHANNELS] = {
 };
 
 typedef struct {
-    uint8_t assigned_motor;
-    xQueueHandle *rpm_count_rcv_queue;
+	xQueueHandle *rpm_count_rcv_queue;
     char *task_name;
     int16_t setpoint;
 } task_params_t;
 
 typedef struct {
-    int16_t pulses_count;
+    uint8_t assigned_motor;
+	int16_t pulses_count;
 	int16_t sensor_count;
 } motor_task_event_t;
 

@@ -28,8 +28,9 @@ void PID_Compute(PID_params_t *params_in)
 	float _pre_error = params_in -> _pre_error;
 	unsigned int dist_destino = params_in -> dist_destino;
 	unsigned int dist_actual = params_in -> dist_actual;
-	int prop_sensor = params_in -> sensor_count;
+	int prop_sensor = params_in -> prop_sensor;
 	float output;
+	float Pline = 0;
 
 	// Calculate error
 	int error = dist_destino - dist_actual;
@@ -96,7 +97,7 @@ void task_motor_generic(void *arg)
 	unsigned int motor_direction = objective_count > 0;
 
 	PID_params_t params = {
-			,motor_id = 0,
+			.motor_id = 0,
 			._integral = 0,
 			._pre_error = 0,
 			.dist_actual = 0,
@@ -213,10 +214,10 @@ void IRAM_ATTR isr_timer(void *para)
 {
     timer_spinlock_take(TIMER_GROUP_0);
     int timer_idx = (int) para;
-    motor_task_event_t evt_A = 0;
-    motor_task_event_t evt_B = 0;
-    motor_task_event_t evt_C = 0;
-    motor_task_event_t evt_D = 0;
+    motor_task_event_t evt_A = {0};
+    motor_task_event_t evt_B = {0};
+    motor_task_event_t evt_C = {0};
+    motor_task_event_t evt_D = {0};
 	int16_t middle_sensor = 0;
     /* Retrieve the interrupt status and the counter value from the timer that reported the interrupt */
     uint32_t timer_intr = timer_group_get_intr_status_in_isr(TIMER_GROUP_0);
