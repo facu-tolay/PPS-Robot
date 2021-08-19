@@ -24,12 +24,15 @@ task_params_t task_params_D;
 
 void PID_Compute(PID_params_t *params_in)
 {
+	uint8_t motor_id = params_in -> motor_id; 
+	int prop_sensor = params_in -> prop_sensor;
 	float _integral = params_in -> _integral;
 	float _pre_error = params_in -> _pre_error;
 	unsigned int dist_destino = params_in -> dist_destino;
 	unsigned int dist_actual = params_in -> dist_actual;
-	int prop_sensor = params_in -> prop_sensor;
 	float output;
+	
+	// Proportional sensor
 	float Pline = 0;
 
 	// Calculate error
@@ -85,6 +88,8 @@ void PID_Compute(PID_params_t *params_in)
 	params_in -> _integral = _integral;
 	params_in -> _pre_error = _pre_error;
 	params_in -> output = output;
+
+	printf("%d // prop sensor= %d # Pout= %f # Iout= %f # Dout= %f # Pline= %f # OUT= %d\n", motor_id, prop_sensor, Pout, Iout, Dout, Pline, output);
 }
 
 void task_motor_generic(void *arg)
@@ -128,7 +133,7 @@ void task_motor_generic(void *arg)
     	params.dist_actual = count_sum;
     	params.dist_destino = objective_count;
 		params.prop_sensor = evt.sensor_count;
-		params.motor_id = evt.assigned_motor;
+		params.motor_id = task_params->assigned_motor;
 
     	PID_Compute(&params);
 
@@ -143,7 +148,7 @@ void task_motor_generic(void *arg)
     		motor_direction = params.output > 0;
     	}
 
-    	printf("%s // pulses count= %d # sum= %d # count_obj= %d # OUT= %d\n", task_params->task_name, evt.pulses_count, count_sum, objective_count, params.output);
+    	//printf("%s // pulses count= %d # sum= %d # count_obj= %d # OUT= %d\n", task_params->task_name, evt.pulses_count, count_sum, objective_count, params.output);
     	//vTaskDelay(100); // a veces es necesario meter un delay para dejar que otras tareas se ejecuten.
     }
 }
