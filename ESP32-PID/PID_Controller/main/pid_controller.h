@@ -172,5 +172,4 @@ void gpio_initialize();
 void motorSetSpeed(uint8_t selection, signed int pwm_value);
 void motorStop(uint8_t selection);
 int16_t bound_values(int16_t input);
-void counter_rutine(uint8_t pcnt);
 #endif /* MAIN_PID_CONTROLLER_H_ */
