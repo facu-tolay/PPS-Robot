@@ -32,7 +32,7 @@ void PID_Compute(PID_params_t *params_in)
 	unsigned int dist_actual = params_in -> dist_actual;
 	float output;
 	
-	if (motor_id != MOT_C_SEL)
+	if (motor_id != MOT_D_SEL)
 		printf("motor_id=%d  |||  prop_sensor=%d\n", motor_id, prop_sensor);
 	// Proportional sensor
 	float Pline = 0;
@@ -243,6 +243,7 @@ void IRAM_ATTR isr_timer(void *para)
 		// get sensors pulses
 
 		pcnt_get_counter_value(PCNT_UNIT_4, &evt_A.sensor_count);
+		pcnt_get_counter_value(PCNT_UNIT_5, &evt_B.sensor_count);
 		pcnt_get_counter_value(PCNT_UNIT_6, &evt_C.sensor_count);
 
 		pcnt_counter_pause(PCNT_UNIT_0);
