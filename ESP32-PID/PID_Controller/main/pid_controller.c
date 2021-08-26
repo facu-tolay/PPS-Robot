@@ -12,10 +12,19 @@
 
 #define SETPOINT (float)120 // in [cm]
 
-xQueueHandle task_motor_A_queue;
-xQueueHandle task_motor_B_queue;
-xQueueHandle task_motor_C_queue;
-xQueueHandle task_motor_D_queue;
+// Colas donde las task de cada motor independiente recibe
+// los pulsos sensados por el encoder y el seguidor de linea
+xQueueHandle encoder_linefllwr_motor_A_rcv_queue;
+xQueueHandle encoder_linefllwr_motor_B_rcv_queue;
+xQueueHandle encoder_linefllwr_motor_C_rcv_queue;
+xQueueHandle encoder_linefllwr_motor_D_rcv_queue;
+
+// Colas donde la tarea maestra le indica
+// a los motores en que setpoint colocarse
+xQueueHandle master_task_motor_A_rcv_queue;
+xQueueHandle master_task_motor_B_rcv_queue;
+xQueueHandle master_task_motor_C_rcv_queue;
+xQueueHandle master_task_motor_D_rcv_queue;
 
 task_params_t task_params_A;
 task_params_t task_params_B;
@@ -97,7 +106,7 @@ void PID_Compute(PID_params_t *params_in)
 void task_motor_generic(void *arg)
 {
 	task_params_t *task_params = (task_params_t *) arg;
-	motor_task_event_t evt;
+	encoder_linefllwr_event_t evt;
 
 	int16_t count_sum = 0; // for accumulating pulses
 	int16_t objective_count = (task_params->setpoint) / DELTA_DISTANCE_PER_SLIT;
@@ -157,58 +166,87 @@ void task_motor_generic(void *arg)
     }
 }
 
+void master_task(void *arg)
+{
+	// generic task generation
+	task_params_A.assigned_motor = MOT_A_SEL;
+	//task_params_A.setpoint = -SETPOINT;
+	task_params_A.rpm_count_rcv_queue = &encoder_linefllwr_motor_A_rcv_queue;
+	task_params_A.task_name = "TASK_Agen";
+
+	task_params_B.assigned_motor = MOT_B_SEL;
+	//task_params_B.setpoint = 0;
+	task_params_B.rpm_count_rcv_queue = &encoder_linefllwr_motor_B_rcv_queue;
+	task_params_B.task_name = "TASK_Bgen";
+
+	task_params_C.assigned_motor = MOT_C_SEL;
+	//task_params_C.setpoint = SETPOINT;
+	task_params_C.rpm_count_rcv_queue = &encoder_linefllwr_motor_C_rcv_queue;
+	task_params_C.task_name = "TASK_Cgen";
+
+	task_params_D.assigned_motor = MOT_D_SEL;
+	//task_params_D.setpoint = 0;
+	task_params_D.rpm_count_rcv_queue = &encoder_linefllwr_motor_D_rcv_queue;
+	task_params_D.task_name = "TASK_Dgen";
+
+	xTaskCreate(task_motor_generic, "task_motor_gen", 2048, (void *)&task_params_A, 5, NULL);
+	xTaskCreate(task_motor_generic, "task_motor_gen", 2048, (void *)&task_params_B, 5, NULL);
+	xTaskCreate(task_motor_generic, "task_motor_gen", 2048, (void *)&task_params_C, 5, NULL);
+	xTaskCreate(task_motor_generic, "task_motor_gen", 2048, (void *)&task_params_D, 5, NULL);
+
+	//probar = {0}
+	master_task_motor_t motor_A_queue =  {
+			.linefllwr_prop_const = {500, 0, 500},
+			.setpoint = 0
+	};
+	master_task_motor_t motor_B_queue;
+	master_task_motor_t motor_C_queue;
+	master_task_motor_t motor_D_queue;
+
+	xQueueSend(master_task_motor_A_rcv_queue, &motor_A_queue, 0);
+
+	while(1)
+	{
+		vTaskDelay(100); // a veces es necesario meter un delay para dejar que otras tareas se ejecuten.
+	}
+}
+
 void app_main(void)
 {
-    int pcnt_unit_left = PCNT_UNIT_0;
-    int pcnt_unit_right = PCNT_UNIT_1;
-    int pcnt_unit_front = PCNT_UNIT_2;	
-    int pcnt_unit_back = PCNT_UNIT_3;
-    int pcnt_sensor_middle = PCNT_UNIT_5;
-    int pcnt_sensor_right = PCNT_UNIT_6;
-    int pcnt_sensor_left = PCNT_UNIT_4;
+	// assignment for pulse counters
+    int pcnt_encoder_left = PCNT_UNIT_0;
+    int pcnt_encoder_right = PCNT_UNIT_1;
+    int pcnt_encoder_front = PCNT_UNIT_2;	
+    int pcnt_encoder_back = PCNT_UNIT_3;
+    int pcnt_linefllwr_left = PCNT_UNIT_4;
+    int pcnt_linefllwr_middle = PCNT_UNIT_5;
+    int pcnt_linefllwr_right = PCNT_UNIT_6;
 
-    pcnt_initialize(pcnt_unit_left, PCNT_INPUT_SIG_IO_A);
-    pcnt_initialize(pcnt_unit_right, PCNT_INPUT_SIG_IO_B);
-    pcnt_initialize(pcnt_unit_front, PCNT_INPUT_SIG_IO_C);
-    pcnt_initialize(pcnt_unit_back, PCNT_INPUT_SIG_IO_D);
-    pcnt_initialize(pcnt_sensor_middle, PNCT_INPUT_SENSOR_2);
-    pcnt_initialize(pcnt_sensor_right, PNCT_INPUT_SENSOR_1);
-    pcnt_initialize(pcnt_sensor_left, PNCT_INPUT_SENSOR_3);
+    pcnt_initialize(pcnt_encoder_left, PCNT_INPUT_SIG_IO_A);
+    pcnt_initialize(pcnt_encoder_right, PCNT_INPUT_SIG_IO_B);
+    pcnt_initialize(pcnt_encoder_front, PCNT_INPUT_SIG_IO_C);
+    pcnt_initialize(pcnt_encoder_back, PCNT_INPUT_SIG_IO_D);
+    pcnt_initialize(pcnt_linefllwr_middle, PNCT_INPUT_SENSOR_2);
+    pcnt_initialize(pcnt_linefllwr_right, PNCT_INPUT_SENSOR_1);
+    pcnt_initialize(pcnt_linefllwr_left, PNCT_INPUT_SENSOR_3);
 
-    task_motor_A_queue = xQueueCreate(10, sizeof(motor_task_event_t));
-    task_motor_B_queue = xQueueCreate(10, sizeof(motor_task_event_t));
-    task_motor_C_queue = xQueueCreate(10, sizeof(motor_task_event_t));
-    task_motor_D_queue = xQueueCreate(10, sizeof(motor_task_event_t));
+    // initialize queues
+    encoder_linefllwr_motor_A_rcv_queue = xQueueCreate(10, sizeof(encoder_linefllwr_event_t));
+    encoder_linefllwr_motor_B_rcv_queue = xQueueCreate(10, sizeof(encoder_linefllwr_event_t));
+    encoder_linefllwr_motor_C_rcv_queue = xQueueCreate(10, sizeof(encoder_linefllwr_event_t));
+    encoder_linefllwr_motor_D_rcv_queue = xQueueCreate(10, sizeof(encoder_linefllwr_event_t));
+
+    master_task_motor_A_rcv_queue = xQueueCreate(10, sizeof(master_task_motor_t));
+    master_task_motor_B_rcv_queue = xQueueCreate(10, sizeof(master_task_motor_t));
+    master_task_motor_C_rcv_queue = xQueueCreate(10, sizeof(master_task_motor_t));
+    master_task_motor_D_rcv_queue = xQueueCreate(10, sizeof(master_task_motor_t));
+
     timer_initialize(TIMER_1, TIMER_AUTORELOAD_EN, TIMER_INTERVAL_RPM_MEASURE);
 
     pwm_initialize();
     gpio_initialize();
 
-    // generic task generation
-    task_params_A.assigned_motor = MOT_A_SEL;
-    task_params_A.setpoint = -SETPOINT;
-    task_params_A.rpm_count_rcv_queue = &task_motor_A_queue;
-    task_params_A.task_name = "TASK_Agen";
-
-    task_params_B.assigned_motor = MOT_B_SEL;
-    task_params_B.setpoint = 0;
-	task_params_B.rpm_count_rcv_queue = &task_motor_B_queue;
-	task_params_B.task_name = "TASK_Bgen";
-
-	task_params_C.assigned_motor = MOT_C_SEL;
-	task_params_C.setpoint = SETPOINT;
-	task_params_C.rpm_count_rcv_queue = &task_motor_C_queue;
-	task_params_C.task_name = "TASK_Cgen";
-
-	task_params_D.assigned_motor = MOT_D_SEL;
-	task_params_D.setpoint = 0;
-	task_params_D.rpm_count_rcv_queue = &task_motor_D_queue;
-	task_params_D.task_name = "TASK_Dgen";
-
-    xTaskCreate(task_motor_generic, "task_motor_gen", 2048, (void *)&task_params_A, 5, NULL);
-    xTaskCreate(task_motor_generic, "task_motor_gen", 2048, (void *)&task_params_B, 5, NULL);
-    xTaskCreate(task_motor_generic, "task_motor_gen", 2048, (void *)&task_params_C, 5, NULL);
-    xTaskCreate(task_motor_generic, "task_motor_gen", 2048, (void *)&task_params_D, 5, NULL);
+    xTaskCreate(master_task, "master_task", 2048, NULL, 10, NULL);
 }
 
 /*
@@ -223,29 +261,30 @@ void IRAM_ATTR isr_timer(void *para)
 {
     timer_spinlock_take(TIMER_GROUP_0);
     int timer_idx = (int) para;
-    motor_task_event_t evt_A = {0};
-    motor_task_event_t evt_B = {0};
-    motor_task_event_t evt_C = {0};
-    motor_task_event_t evt_D = {0};
-	int16_t middle_sensor = 0;
-    /* Retrieve the interrupt status and the counter value from the timer that reported the interrupt */
+    encoder_linefllwr_event_t evt_A = {0};
+    encoder_linefllwr_event_t evt_B = {0};
+    encoder_linefllwr_event_t evt_C = {0};
+    encoder_linefllwr_event_t evt_D = {0};
+
+	/* Retrieve the interrupt status and the counter value from the timer that reported the interrupt */
     uint32_t timer_intr = timer_group_get_intr_status_in_isr(TIMER_GROUP_0);
 
     if (timer_intr & TIMER_INTR_T1) // timer 1 -> RPM
 	{
 		timer_group_clr_intr_status_in_isr(TIMER_GROUP_0, TIMER_1);
 
-		// get pulses
+		// get pulses from encoders
 		pcnt_get_counter_value(PCNT_UNIT_0, &evt_A.pulses_count);
 		pcnt_get_counter_value(PCNT_UNIT_1, &evt_B.pulses_count);
 		pcnt_get_counter_value(PCNT_UNIT_2, &evt_C.pulses_count);
 		pcnt_get_counter_value(PCNT_UNIT_3, &evt_D.pulses_count);
-		// get sensors pulses
 
+		// get line follower pulses
 		pcnt_get_counter_value(PCNT_UNIT_4, &evt_A.sensor_count);
 		pcnt_get_counter_value(PCNT_UNIT_5, &evt_B.sensor_count);
 		pcnt_get_counter_value(PCNT_UNIT_6, &evt_C.sensor_count);
 
+		// clear and restart all counts
 		pcnt_counter_pause(PCNT_UNIT_0);
 		pcnt_counter_clear(PCNT_UNIT_0);
 		pcnt_counter_resume(PCNT_UNIT_0);
@@ -279,10 +318,10 @@ void IRAM_ATTR isr_timer(void *para)
     /* After the alarm has been triggered we need enable it again, so it is triggered the next time */
     timer_group_enable_alarm_in_isr(TIMER_GROUP_0, timer_idx);
 
-    xQueueSendFromISR(task_motor_A_queue, &evt_A, NULL); // send the event data back to the main program task
-    xQueueSendFromISR(task_motor_B_queue, &evt_B, NULL); // send the event data back to the main program task
-    xQueueSendFromISR(task_motor_C_queue, &evt_C, NULL); // send the event data back to the main program task
-    xQueueSendFromISR(task_motor_D_queue, &evt_D, NULL); // send the event data back to the main program task
+    xQueueSendFromISR(encoder_linefllwr_motor_A_rcv_queue, &evt_A, NULL); // send the event data back to the main program task
+    xQueueSendFromISR(encoder_linefllwr_motor_B_rcv_queue, &evt_B, NULL); // send the event data back to the main program task
+    xQueueSendFromISR(encoder_linefllwr_motor_C_rcv_queue, &evt_C, NULL); // send the event data back to the main program task
+    xQueueSendFromISR(encoder_linefllwr_motor_D_rcv_queue, &evt_D, NULL); // send the event data back to the main program task
 
     timer_spinlock_give(TIMER_GROUP_0);
     return;
