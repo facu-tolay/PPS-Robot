@@ -33,18 +33,15 @@ task_params_t task_params_D;
 
 void PID_Compute(PID_params_t *params_in)
 {
-	uint8_t motor_id = params_in -> motor_id; 
-	int prop_sensor = params_in -> prop_sensor * 20;
+	uint8_t motor_id = params_in -> motor_id;
 	float _integral = params_in -> _integral;
 	float _pre_error = params_in -> _pre_error;
 	unsigned int dist_destino = params_in -> dist_destino;
 	unsigned int dist_actual = params_in -> dist_actual;
 	float output;
-	
-	if (motor_id != MOT_D_SEL)
-		printf("motor_id=%d  |||  prop_sensor=%d\n", motor_id, prop_sensor);
-	// Proportional sensor
-	float Pline = 0;
+
+	uint8_t linefllwr_sensor_count[HALL_SENSOR_COUNT] = params_in -> linefllwr_sensor_count;
+	uint16_t linefllwr_prop_const[HALL_SENSOR_COUNT] = params_in -> linefllwr_prop_const;
 
 	// Calculate error
 	int error = dist_destino - dist_actual;
@@ -66,7 +63,7 @@ void PID_Compute(PID_params_t *params_in)
 		float Dout = _Kd * derivative;
 
 		// Calculate total output
-		output = (Pout + Iout + Dout) + Pline;
+		output = (Pout + Iout + Dout);
 
 		// Restrict to max/min
 		if(error > 0)
@@ -106,11 +103,15 @@ void PID_Compute(PID_params_t *params_in)
 void task_motor_generic(void *arg)
 {
 	task_params_t *task_params = (task_params_t *) arg;
-	encoder_linefllwr_event_t evt;
+	encoder_linefllwr_event_t evt_interrupt;
+	master_task_motor_t evt_master_queue_rcv;
+	uint16_t linefllwr_prop_const_local[HALL_SENSOR_COUNT] = {0};
 
 	int16_t count_sum = 0; // for accumulating pulses
-	int16_t objective_count = (task_params->setpoint) / DELTA_DISTANCE_PER_SLIT;
-	unsigned int motor_direction = objective_count > 0;
+	//int16_t objective_count = (task_params->setpoint) / DELTA_DISTANCE_PER_SLIT;
+	//unsigned int motor_direction = objective_count > 0;
+	int16_t objective_count = 0;
+	unsigned int motor_direction = 0;
 
 	PID_params_t params = {
 			.motor_id = 0,
@@ -118,50 +119,57 @@ void task_motor_generic(void *arg)
 			._pre_error = 0,
 			.dist_actual = 0,
 			.dist_destino = 0,
-			.prop_sensor = 0,
 			.output = 1
 	};
 
-	vTaskDelay(200);
-	gpio_set_level(GPIO_READY_LED, 1);
-	vTaskDelay(100);
-	gpio_set_level(GPIO_READY_LED, 0);
-	vTaskDelay(100);
-	gpio_set_level(GPIO_ENABLE_MOTORS, 1);
-
     while (1)
     {
-    	xQueueReceive(*(task_params->rpm_count_rcv_queue), &evt, portMAX_DELAY);
-    	//if (task_params->assigned_motor == MOT_A_SEL || task_params->assigned_motor == MOT_C_SEL)
-    	//	printf("motor_id = %d -> pulses_count = %d // sensor_count = %d\n", task_params->assigned_motor, evt.pulses_count, evt.sensor_count);
-
-    	if(motor_direction)
+    	if(xQueueReceive(*(task_params->rpm_count_rcv_queue), &evt_interrupt, 30) == pdTRUE) // rcv from interrupt (encoder, linef)
     	{
-    		count_sum += evt.pulses_count;
-    	}
-    	else
-    	{
-    		count_sum -= evt.pulses_count;
-    	}
-    	params.dist_actual = count_sum;
-    	params.dist_destino = objective_count;
-		params.prop_sensor = evt.sensor_count;
-		params.motor_id = task_params->assigned_motor;
+    		//if (task_params->assigned_motor == MOT_A_SEL || task_params->assigned_motor == MOT_C_SEL)
+			//	printf("motor_id = %d -> pulses_count = %d // sensor_count = %d\n", task_params->assigned_motor, evt.pulses_count, evt.sensor_count);
 
-    	PID_Compute(&params);
+			if(motor_direction)
+			{
+				count_sum += evt_interrupt.pulses_count;
+			}
+			else
+			{
+				count_sum -= evt_interrupt.pulses_count;
+			}
 
-    	if(params.output == 0)
-    	{
-    		motorStop(task_params->assigned_motor);
-    		count_sum = objective_count;
+			params.dist_actual = count_sum;
+			params.dist_destino = objective_count;
+			params.linefllwr_sensor_count = evt_interrupt.hall_sensor_count;
+			params.linefllwr_prop_const = linefllwr_prop_const_local;
+			params.motor_id = task_params->assigned_motor;
+
+			PID_Compute(&params);
+
+			if(params.output == 0)
+			{
+				motorStop(task_params->assigned_motor);
+				count_sum = objective_count;
+			}
+			else
+			{
+				motorSetSpeed(task_params->assigned_motor, params.output);
+				motor_direction = params.output > 0;
+			}
+
+			//printf("%s // pulses count= %d # sum= %d # count_obj= %d # OUT= %d\n", task_params->task_name, evt.pulses_count, count_sum, objective_count, params.output);
     	}
-    	else
+    	else if(xQueueReceive(*(task_params->master_queue_rcv), &evt_master_queue_rcv, 30) == pdTRUE) // rcv from master task
     	{
-    		motorSetSpeed(task_params->assigned_motor, params.output);
-    		motor_direction = params.output > 0;
+    		objective_count = evt_master_queue_rcv.setpoint;
+    		motor_direction = objective_count > 0;
+
+    		for(int i=0; i<HALL_SENSOR_COUNT; i++)
+    		{
+    			linefllwr_prop_const_local[i] = evt_master_queue_rcv.linefllwr_prop_const[i];
+    		}
     	}
 
-    	//printf("%s // pulses count= %d # sum= %d # count_obj= %d # OUT= %d\n", task_params->task_name, evt.pulses_count, count_sum, objective_count, params.output);
     	//vTaskDelay(100); // a veces es necesario meter un delay para dejar que otras tareas se ejecuten.
     }
 }
@@ -194,16 +202,36 @@ void master_task(void *arg)
 	xTaskCreate(task_motor_generic, "task_motor_gen", 2048, (void *)&task_params_C, 5, NULL);
 	xTaskCreate(task_motor_generic, "task_motor_gen", 2048, (void *)&task_params_D, 5, NULL);
 
+	vTaskDelay(200);
+	gpio_set_level(GPIO_READY_LED, 1);
+	vTaskDelay(100);
+	gpio_set_level(GPIO_READY_LED, 0);
+	vTaskDelay(100);
+	gpio_set_level(GPIO_ENABLE_MOTORS, 1);
+
 	//probar = {0}
 	master_task_motor_t motor_A_queue =  {
 			.linefllwr_prop_const = {500, 0, 500},
 			.setpoint = 0
 	};
-	master_task_motor_t motor_B_queue;
-	master_task_motor_t motor_C_queue;
-	master_task_motor_t motor_D_queue;
+	master_task_motor_t motor_B_queue =  {
+			.linefllwr_prop_const = {500, 0, 500},
+			.setpoint = 0
+	};
+	master_task_motor_t motor_C_queue =  {
+			.linefllwr_prop_const = {500, 0, 500},
+			.setpoint = 0
+	};
+	master_task_motor_t motor_D_queue =  {
+			.linefllwr_prop_const = {500, 0, 500},
+			.setpoint = 0
+	};
+
 
 	xQueueSend(master_task_motor_A_rcv_queue, &motor_A_queue, 0);
+	xQueueSend(master_task_motor_B_rcv_queue, &motor_B_queue, 0);
+	xQueueSend(master_task_motor_C_rcv_queue, &motor_C_queue, 0);
+	xQueueSend(master_task_motor_D_rcv_queue, &motor_D_queue, 0);
 
 	while(1)
 	{
@@ -261,7 +289,8 @@ void IRAM_ATTR isr_timer(void *para)
 {
     timer_spinlock_take(TIMER_GROUP_0);
     int timer_idx = (int) para;
-    encoder_linefllwr_event_t evt_A = {0};
+    int16_t hall_sensor_count[HALL_SENSOR_COUNT]; // for hall sensors
+    encoder_linefllwr_event_t evt_A = {0}; // for wheel encoders
     encoder_linefllwr_event_t evt_B = {0};
     encoder_linefllwr_event_t evt_C = {0};
     encoder_linefllwr_event_t evt_D = {0};
@@ -280,9 +309,17 @@ void IRAM_ATTR isr_timer(void *para)
 		pcnt_get_counter_value(PCNT_UNIT_3, &evt_D.pulses_count);
 
 		// get line follower pulses
-		pcnt_get_counter_value(PCNT_UNIT_4, &evt_A.sensor_count);
-		pcnt_get_counter_value(PCNT_UNIT_5, &evt_B.sensor_count);
-		pcnt_get_counter_value(PCNT_UNIT_6, &evt_C.sensor_count);
+		pcnt_get_counter_value(PCNT_UNIT_4, &hall_sensor_count[0]);
+		pcnt_get_counter_value(PCNT_UNIT_5, &hall_sensor_count[1]);
+		pcnt_get_counter_value(PCNT_UNIT_6, &hall_sensor_count[2]);
+
+		for(int i=0; i<HALL_SENSOR_COUNT; i++)
+		{
+			evt_A.hall_sensor_count[i] = hall_sensor_count[i];
+			evt_B.hall_sensor_count[i] = hall_sensor_count[i];
+			evt_C.hall_sensor_count[i] = hall_sensor_count[i];
+			evt_D.hall_sensor_count[i] = hall_sensor_count[i];
+		}
 
 		// clear and restart all counts
 		pcnt_counter_pause(PCNT_UNIT_0);
@@ -312,7 +349,6 @@ void IRAM_ATTR isr_timer(void *para)
 		pcnt_counter_pause(PCNT_UNIT_6);
 		pcnt_counter_clear(PCNT_UNIT_6);
 		pcnt_counter_resume(PCNT_UNIT_6);
-
 	}
 
     /* After the alarm has been triggered we need enable it again, so it is triggered the next time */

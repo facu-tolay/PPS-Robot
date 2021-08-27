@@ -49,6 +49,7 @@
 #define PCNT_INPUT_SIG_IO_D		27	// Pulse Input GPIO
 
 // SENSORES defines
+#define HALL_SENSOR_COUNT		3
 #define PNCT_INPUT_SENSOR_1		39
 #define PNCT_INPUT_SENSOR_2		34	
 #define PNCT_INPUT_SENSOR_3		35
@@ -141,23 +142,25 @@ ledc_channel_config_t ledc_channel[CANT_LEDC_CHANNELS] = {
 typedef struct {
     uint8_t assigned_motor;
 	xQueueHandle *rpm_count_rcv_queue;
+	xQueueHandle *master_queue_rcv;
     char *task_name;
     int16_t setpoint;
 } task_params_t;
 
 typedef struct {
 	float setpoint;
-	uint16_t linefllwr_prop_const[3];
+	uint16_t linefllwr_prop_const[HALL_SENSOR_COUNT];
 } master_task_motor_t;
 
 typedef struct {
 	int16_t pulses_count;
-	int16_t sensor_count;
+	int8_t hall_sensor_count[HALL_SENSOR_COUNT];
 } encoder_linefllwr_event_t;
 
 typedef struct {
 	uint8_t motor_id;
-	int prop_sensor;
+	int8_t linefllwr_sensor_count[HALL_SENSOR_COUNT];
+	uint16_t linefllwr_prop_const[HALL_SENSOR_COUNT];
 	unsigned int dist_actual;
 	unsigned int dist_destino;
 	float _integral;
