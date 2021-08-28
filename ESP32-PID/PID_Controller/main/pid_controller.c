@@ -33,19 +33,16 @@ task_params_t task_params_D;
 
 void PID_Compute(PID_params_t *params_in)
 {
-	uint8_t motor_id = params_in -> motor_id;
 	float _integral = params_in -> _integral;
 	float _pre_error = params_in -> _pre_error;
 	unsigned int dist_destino = params_in -> dist_destino;
 	unsigned int dist_actual = params_in -> dist_actual;
+	int8_t *linefllwr_sensor_count = params_in -> linefllwr_sensor_count;
+	uint16_t *linefllwr_prop_const = params_in -> linefllwr_prop_const;
 	float output;
-
-	uint8_t linefllwr_sensor_count[HALL_SENSOR_COUNT] = params_in -> linefllwr_sensor_count;
-	uint16_t linefllwr_prop_const[HALL_SENSOR_COUNT] = params_in -> linefllwr_prop_const;
 
 	// Calculate error
 	int error = dist_destino - dist_actual;
-
 	if(!error)
 	{
 		_pre_error = 0;
@@ -62,8 +59,14 @@ void PID_Compute(PID_params_t *params_in)
 		float derivative = (error - _pre_error) / _dt; // Derivative term
 		float Dout = _Kd * derivative;
 
+		float Pline=0;
+		for(int i=0; i<HALL_SENSOR_COUNT; i++)
+		{
+			Pline += linefllwr_sensor_count[i]*linefllwr_prop_const[i];
+		}
+
 		// Calculate total output
-		output = (Pout + Iout + Dout);
+		output = (Pout + Iout + Dout) + Pline;
 
 		// Restrict to max/min
 		if(error > 0)
@@ -92,7 +95,8 @@ void PID_Compute(PID_params_t *params_in)
 		// Save error to previous error
 		_pre_error = error;
 
-		//printf("%d // prop sensor= %d # Pout= %4.2f # Iout= %4.2f # Dout= %4.2f # Pline= %4.2f # OUT= %4.2f\n", motor_id, prop_sensor, Pout, Iout, Dout, Pline, output);
+		printf("[%d;%d;%d] # Pout=%4.2f # Iout=%4.2f # Dout=%4.2f # Pline=%4.2f # OUT=%4.2f\n",
+				linefllwr_sensor_count[0], linefllwr_sensor_count[1], linefllwr_sensor_count[2], Pout, Iout, Dout, Pline, output);
 	}
 
 	params_in -> _integral = _integral;
@@ -103,6 +107,7 @@ void PID_Compute(PID_params_t *params_in)
 void task_motor_generic(void *arg)
 {
 	task_params_t *task_params = (task_params_t *) arg;
+
 	encoder_linefllwr_event_t evt_interrupt;
 	master_task_motor_t evt_master_queue_rcv;
 	uint16_t linefllwr_prop_const_local[HALL_SENSOR_COUNT] = {0};
@@ -114,7 +119,6 @@ void task_motor_generic(void *arg)
 	unsigned int motor_direction = 0;
 
 	PID_params_t params = {
-			.motor_id = 0,
 			._integral = 0,
 			._pre_error = 0,
 			.dist_actual = 0,
@@ -124,11 +128,8 @@ void task_motor_generic(void *arg)
 
     while (1)
     {
-    	if(xQueueReceive(*(task_params->rpm_count_rcv_queue), &evt_interrupt, 30) == pdTRUE) // rcv from interrupt (encoder, linef)
+    	if(xQueueReceive(*(task_params->rpm_count_rcv_queue), &evt_interrupt, 10) == pdTRUE) // rcv from interrupt (encoder, linef)
     	{
-    		//if (task_params->assigned_motor == MOT_A_SEL || task_params->assigned_motor == MOT_C_SEL)
-			//	printf("motor_id = %d -> pulses_count = %d // sensor_count = %d\n", task_params->assigned_motor, evt.pulses_count, evt.sensor_count);
-
 			if(motor_direction)
 			{
 				count_sum += evt_interrupt.pulses_count;
@@ -142,8 +143,6 @@ void task_motor_generic(void *arg)
 			params.dist_destino = objective_count;
 			params.linefllwr_sensor_count = evt_interrupt.hall_sensor_count;
 			params.linefllwr_prop_const = linefllwr_prop_const_local;
-			params.motor_id = task_params->assigned_motor;
-
 			PID_Compute(&params);
 
 			if(params.output == 0)
@@ -159,15 +158,17 @@ void task_motor_generic(void *arg)
 
 			//printf("%s // pulses count= %d # sum= %d # count_obj= %d # OUT= %d\n", task_params->task_name, evt.pulses_count, count_sum, objective_count, params.output);
     	}
-    	else if(xQueueReceive(*(task_params->master_queue_rcv), &evt_master_queue_rcv, 30) == pdTRUE) // rcv from master task
+    	else if(xQueueReceive(*(task_params->master_queue_rcv), &evt_master_queue_rcv, 10) == pdTRUE) // rcv from master task
     	{
-    		objective_count = evt_master_queue_rcv.setpoint;
+    		objective_count = evt_master_queue_rcv.setpoint / DELTA_DISTANCE_PER_SLIT;
     		motor_direction = objective_count > 0;
 
     		for(int i=0; i<HALL_SENSOR_COUNT; i++)
     		{
     			linefllwr_prop_const_local[i] = evt_master_queue_rcv.linefllwr_prop_const[i];
     		}
+
+    		printf("SETPOINT UPDATED!\n");
     	}
 
     	//vTaskDelay(100); // a veces es necesario meter un delay para dejar que otras tareas se ejecuten.
@@ -176,25 +177,27 @@ void task_motor_generic(void *arg)
 
 void master_task(void *arg)
 {
+	uint8_t flag=0;
+
 	// generic task generation
 	task_params_A.assigned_motor = MOT_A_SEL;
-	//task_params_A.setpoint = -SETPOINT;
 	task_params_A.rpm_count_rcv_queue = &encoder_linefllwr_motor_A_rcv_queue;
+	task_params_A.master_queue_rcv = &master_task_motor_A_rcv_queue;
 	task_params_A.task_name = "TASK_Agen";
 
 	task_params_B.assigned_motor = MOT_B_SEL;
-	//task_params_B.setpoint = 0;
 	task_params_B.rpm_count_rcv_queue = &encoder_linefllwr_motor_B_rcv_queue;
+	task_params_B.master_queue_rcv = &master_task_motor_B_rcv_queue;
 	task_params_B.task_name = "TASK_Bgen";
 
 	task_params_C.assigned_motor = MOT_C_SEL;
-	//task_params_C.setpoint = SETPOINT;
 	task_params_C.rpm_count_rcv_queue = &encoder_linefllwr_motor_C_rcv_queue;
+	task_params_C.master_queue_rcv = &master_task_motor_C_rcv_queue;
 	task_params_C.task_name = "TASK_Cgen";
 
 	task_params_D.assigned_motor = MOT_D_SEL;
-	//task_params_D.setpoint = 0;
 	task_params_D.rpm_count_rcv_queue = &encoder_linefllwr_motor_D_rcv_queue;
+	task_params_D.master_queue_rcv = &master_task_motor_D_rcv_queue;
 	task_params_D.task_name = "TASK_Dgen";
 
 	xTaskCreate(task_motor_generic, "task_motor_gen", 2048, (void *)&task_params_A, 5, NULL);
@@ -211,31 +214,33 @@ void master_task(void *arg)
 
 	//probar = {0}
 	master_task_motor_t motor_A_queue =  {
-			.linefllwr_prop_const = {500, 0, 500},
-			.setpoint = 0
+			.linefllwr_prop_const = {POSITIVE_FEED, 0, NEGATIVE_FEED},
+			.setpoint = SETPOINT
 	};
 	master_task_motor_t motor_B_queue =  {
-			.linefllwr_prop_const = {500, 0, 500},
+			.linefllwr_prop_const = {POSITIVE_FEED, 0, NEGATIVE_FEED},
 			.setpoint = 0
 	};
 	master_task_motor_t motor_C_queue =  {
-			.linefllwr_prop_const = {500, 0, 500},
-			.setpoint = 0
+			.linefllwr_prop_const = {POSITIVE_FEED, 0, NEGATIVE_FEED},
+			.setpoint = -SETPOINT
 	};
 	master_task_motor_t motor_D_queue =  {
-			.linefllwr_prop_const = {500, 0, 500},
+			.linefllwr_prop_const = {POSITIVE_FEED, 0, NEGATIVE_FEED},
 			.setpoint = 0
 	};
-
-
-	xQueueSend(master_task_motor_A_rcv_queue, &motor_A_queue, 0);
-	xQueueSend(master_task_motor_B_rcv_queue, &motor_B_queue, 0);
-	xQueueSend(master_task_motor_C_rcv_queue, &motor_C_queue, 0);
-	xQueueSend(master_task_motor_D_rcv_queue, &motor_D_queue, 0);
 
 	while(1)
 	{
-		vTaskDelay(100); // a veces es necesario meter un delay para dejar que otras tareas se ejecuten.
+		vTaskDelay(2 * portTICK_PERIOD_MS); // a veces es necesario meter un delay para dejar que otras tareas se ejecuten.
+		if(!flag)
+		{
+			xQueueSend(master_task_motor_A_rcv_queue, &motor_A_queue, 0);
+			xQueueSend(master_task_motor_B_rcv_queue, &motor_B_queue, 0);
+			xQueueSend(master_task_motor_C_rcv_queue, &motor_C_queue, 0);
+			xQueueSend(master_task_motor_D_rcv_queue, &motor_D_queue, 0);
+			flag = 1;
+		}
 	}
 }
 
@@ -274,7 +279,8 @@ void app_main(void)
     pwm_initialize();
     gpio_initialize();
 
-    xTaskCreate(master_task, "master_task", 2048, NULL, 10, NULL);
+    xTaskCreate(master_task, "master_task", 2048, NULL, 5, NULL);
+    return;
 }
 
 /*
@@ -322,33 +328,13 @@ void IRAM_ATTR isr_timer(void *para)
 		}
 
 		// clear and restart all counts
-		pcnt_counter_pause(PCNT_UNIT_0);
-		pcnt_counter_clear(PCNT_UNIT_0);
-		pcnt_counter_resume(PCNT_UNIT_0);
-
-		pcnt_counter_pause(PCNT_UNIT_1);
-		pcnt_counter_clear(PCNT_UNIT_1);
-		pcnt_counter_resume(PCNT_UNIT_1);
-
-		pcnt_counter_pause(PCNT_UNIT_2);
-		pcnt_counter_clear(PCNT_UNIT_2);
-		pcnt_counter_resume(PCNT_UNIT_2);
-
-		pcnt_counter_pause(PCNT_UNIT_3);
-		pcnt_counter_clear(PCNT_UNIT_3);
-		pcnt_counter_resume(PCNT_UNIT_3);
-
-		pcnt_counter_pause(PCNT_UNIT_4);
-		pcnt_counter_clear(PCNT_UNIT_4);
-		pcnt_counter_resume(PCNT_UNIT_4);
-
-		pcnt_counter_pause(PCNT_UNIT_5);
-		pcnt_counter_clear(PCNT_UNIT_5);
-		pcnt_counter_resume(PCNT_UNIT_5);
-
-		pcnt_counter_pause(PCNT_UNIT_6);
-		pcnt_counter_clear(PCNT_UNIT_6);
-		pcnt_counter_resume(PCNT_UNIT_6);
+		restart_pulse_counter(PCNT_UNIT_0);
+		restart_pulse_counter(PCNT_UNIT_1);
+		restart_pulse_counter(PCNT_UNIT_2);
+		restart_pulse_counter(PCNT_UNIT_3);
+		restart_pulse_counter(PCNT_UNIT_4);
+		restart_pulse_counter(PCNT_UNIT_5);
+		restart_pulse_counter(PCNT_UNIT_6);
 	}
 
     /* After the alarm has been triggered we need enable it again, so it is triggered the next time */
@@ -516,3 +502,10 @@ void motorStop(uint8_t selection)
 	motorSetSpeed(selection, 0);
 }
 
+void restart_pulse_counter(int pcnt)
+{
+	pcnt_counter_pause(pcnt);
+	pcnt_counter_clear(pcnt);
+	pcnt_counter_resume(pcnt);
+	return;
+}

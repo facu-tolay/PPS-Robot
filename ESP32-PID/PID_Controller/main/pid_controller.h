@@ -27,11 +27,8 @@
 #define MIN_PWM_VALUE	2000
 #define MAX_PWM_VALUE	8191
 
-#define PWM_LEVEL_1		MIN_PWM_VALUE
-#define PWM_LEVEL_2		4500
-#define PWM_LEVEL_3		5000
-#define PWM_LEVEL_4		6500
-#define PWM_LEVEL_5		MAX_PWM_VALUE
+#define POSITIVE_FEED 3000
+#define NEGATIVE_FEED 3000
 
 // TIMER defines
 #define TIMER_DIVIDER				16  //  Hardware timer clock divider
@@ -144,7 +141,6 @@ typedef struct {
 	xQueueHandle *rpm_count_rcv_queue;
 	xQueueHandle *master_queue_rcv;
     char *task_name;
-    int16_t setpoint;
 } task_params_t;
 
 typedef struct {
@@ -158,9 +154,8 @@ typedef struct {
 } encoder_linefllwr_event_t;
 
 typedef struct {
-	uint8_t motor_id;
-	int8_t linefllwr_sensor_count[HALL_SENSOR_COUNT];
-	uint16_t linefllwr_prop_const[HALL_SENSOR_COUNT];
+	int8_t *linefllwr_sensor_count;
+	uint16_t *linefllwr_prop_const;
 	unsigned int dist_actual;
 	unsigned int dist_destino;
 	float _integral;
@@ -177,7 +172,7 @@ void pcnt_initialize(int unit, int signal_gpio_in);
 void timer_initialize(int timer_idx, bool auto_reload, double timer_interval_sec);
 void gpio_initialize();
 
+void restart_pulse_counter(int pcnt);
 void motorSetSpeed(uint8_t selection, signed int pwm_value);
 void motorStop(uint8_t selection);
-int16_t bound_values(int16_t input);
 #endif /* MAIN_PID_CONTROLLER_H_ */
