@@ -1,16 +1,16 @@
 #include "pid_controller.h"
 
-#define WHEEL_DIAMETER		(float)5.08 // 2 pulgadas - expresado en [cm]
+#define WHEEL_DIAMETER			(float)5.08 // 2 pulgadas - expresado en [cm]
 #define CANT_RANURAS_ENCODER	(float)24
 #define ONE_TURN_DISPLACEMENT	(float)15.9593 // por cada vuelta de la rueda, se avanza 2.PI.r = PI x 5.08cm = 15.9593[cm]
-#define DELTA_DISTANCE_PER_SLIT	(float)(ONE_TURN_DISPLACEMENT/CANT_RANURAS_ENCODER)// cuantos [cm] avanza por cada ranura
+#define DELTA_DISTANCE_PER_SLIT	(float)(0.66497083)// cuantos [cm] avanza por cada ranura (ONE_TURN_DISPLACEMENT/CANT_RANURAS_ENCODER)
 
 #define _Kp (float)15
-#define _Ki (float)6
-#define _Kd (float)15
+#define _Ki (float)4
+#define _Kd (float)12
 #define _dt (float)TIMER_INTERVAL_RPM_MEASURE
 
-#define SETPOINT (float)120 // in [cm]
+#define SETPOINT (float)250 // in [cm]
 
 // Colas donde las task de cada motor independiente recibe
 // los pulsos sensados por el encoder y el seguidor de linea
@@ -37,12 +37,14 @@ void PID_Compute(PID_params_t *params_in)
 	float _pre_error = params_in -> _pre_error;
 	unsigned int dist_destino = params_in -> dist_destino;
 	unsigned int dist_actual = params_in -> dist_actual;
-	int8_t *linefllwr_sensor_count = params_in -> linefllwr_sensor_count;
-	uint16_t *linefllwr_prop_const = params_in -> linefllwr_prop_const;
 	float output;
 
 	// Calculate error
 	int error = dist_destino - dist_actual;
+
+	// Save error to previous error
+	_pre_error = error;
+
 	if(!error)
 	{
 		_pre_error = 0;
@@ -59,14 +61,8 @@ void PID_Compute(PID_params_t *params_in)
 		float derivative = (error - _pre_error) / _dt; // Derivative term
 		float Dout = _Kd * derivative;
 
-		float Pline=0;
-		for(int i=0; i<HALL_SENSOR_COUNT; i++)
-		{
-			Pline += linefllwr_sensor_count[i]*linefllwr_prop_const[i];
-		}
-
 		// Calculate total output
-		output = (Pout + Iout + Dout) + Pline;
+		output = Pout + Iout + Dout;
 
 		// Restrict to max/min
 		if(error > 0)
@@ -92,11 +88,8 @@ void PID_Compute(PID_params_t *params_in)
 			}
 		}
 
-		// Save error to previous error
-		_pre_error = error;
-
-		printf("[%d;%d;%d] # Pout=%4.2f # Iout=%4.2f # Dout=%4.2f # Pline=%4.2f # OUT=%4.2f\n",
-				linefllwr_sensor_count[0], linefllwr_sensor_count[1], linefllwr_sensor_count[2], Pout, Iout, Dout, Pline, output);
+		//printf("# Pout=%4.2f # Iout=%4.2f # Dout=%4.2f # OUT=%4.2f\n", Pout, Iout, Dout, output);
+		printf("%4.2f\n", output);
 	}
 
 	params_in -> _integral = _integral;
@@ -110,12 +103,13 @@ void task_motor_generic(void *arg)
 
 	encoder_linefllwr_event_t evt_interrupt;
 	master_task_motor_t evt_master_queue_rcv;
-	uint16_t linefllwr_prop_const_local[HALL_SENSOR_COUNT] = {0};
+	float linefllwr_prop_const_local[HALL_SENSOR_COUNT] = {0};
 
 	int16_t count_sum = 0; // for accumulating pulses
 	//int16_t objective_count = (task_params->setpoint) / DELTA_DISTANCE_PER_SLIT;
 	//unsigned int motor_direction = objective_count > 0;
 	int16_t objective_count = 0;
+	int16_t correction_count = 0;
 	unsigned int motor_direction = 0;
 
 	PID_params_t params = {
@@ -139,10 +133,16 @@ void task_motor_generic(void *arg)
 				count_sum -= evt_interrupt.pulses_count;
 			}
 
+			// calculate correction
+			for(int i=0; i<HALL_SENSOR_COUNT; i++)
+			{
+				correction_count += (evt_interrupt.hall_sensor_count[i] * linefllwr_prop_const_local[i]) / DELTA_DISTANCE_PER_SLIT;
+			}
+			objective_count += correction_count;
+			correction_count = 0;
+
 			params.dist_actual = count_sum;
 			params.dist_destino = objective_count;
-			params.linefllwr_sensor_count = evt_interrupt.hall_sensor_count;
-			params.linefllwr_prop_const = linefllwr_prop_const_local;
 			PID_Compute(&params);
 
 			if(params.output == 0)
@@ -214,19 +214,19 @@ void master_task(void *arg)
 
 	//probar = {0}
 	master_task_motor_t motor_A_queue =  {
-			.linefllwr_prop_const = {POSITIVE_FEED, 0, NEGATIVE_FEED},
-			.setpoint = SETPOINT
+			.linefllwr_prop_const = {0, 0, 0},
+			.setpoint = -SETPOINT
 	};
 	master_task_motor_t motor_B_queue =  {
-			.linefllwr_prop_const = {POSITIVE_FEED, 0, NEGATIVE_FEED},
+			.linefllwr_prop_const = {NEGATIVE_FEED, 0, POSITIVE_FEED},
 			.setpoint = 0
 	};
 	master_task_motor_t motor_C_queue =  {
-			.linefllwr_prop_const = {POSITIVE_FEED, 0, NEGATIVE_FEED},
+			.linefllwr_prop_const = {0, 0, 0},
 			.setpoint = -SETPOINT
 	};
 	master_task_motor_t motor_D_queue =  {
-			.linefllwr_prop_const = {POSITIVE_FEED, 0, NEGATIVE_FEED},
+			.linefllwr_prop_const = {NEGATIVE_FEED, 0, POSITIVE_FEED},
 			.setpoint = 0
 	};
 

@@ -24,11 +24,11 @@
 #define INCLUDE_vTaskDelay 1
 
 // PWM defines
-#define MIN_PWM_VALUE	2000
+#define MIN_PWM_VALUE	2800
 #define MAX_PWM_VALUE	8191
 
-#define POSITIVE_FEED 3000
-#define NEGATIVE_FEED 3000
+#define POSITIVE_FEED ((float)1.75)
+#define NEGATIVE_FEED ((float)-1.75)
 
 // TIMER defines
 #define TIMER_DIVIDER				16  //  Hardware timer clock divider
@@ -145,7 +145,7 @@ typedef struct {
 
 typedef struct {
 	float setpoint;
-	uint16_t linefllwr_prop_const[HALL_SENSOR_COUNT];
+	float linefllwr_prop_const[HALL_SENSOR_COUNT];
 } master_task_motor_t;
 
 typedef struct {
@@ -154,8 +154,6 @@ typedef struct {
 } encoder_linefllwr_event_t;
 
 typedef struct {
-	int8_t *linefllwr_sensor_count;
-	uint16_t *linefllwr_prop_const;
 	unsigned int dist_actual;
 	unsigned int dist_destino;
 	float _integral;
