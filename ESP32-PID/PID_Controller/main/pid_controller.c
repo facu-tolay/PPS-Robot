@@ -5,12 +5,12 @@
 #define ONE_TURN_DISPLACEMENT	(float)15.9593 // por cada vuelta de la rueda, se avanza 2.PI.r = PI x 5.08cm = 15.9593[cm]
 #define DELTA_DISTANCE_PER_SLIT	(float)(0.66497083)// cuantos [cm] avanza por cada ranura (ONE_TURN_DISPLACEMENT/CANT_RANURAS_ENCODER)
 
-#define _Kp (float)15
+#define _Kp (float)12
 #define _Ki (float)4
-#define _Kd (float)12
+#define _Kd (float)8
 #define _dt (float)TIMER_INTERVAL_RPM_MEASURE
 
-#define SETPOINT (float)250 // in [cm]
+#define SETPOINT (float)150 // in [cm]
 
 // Colas donde las task de cada motor independiente recibe
 // los pulsos sensados por el encoder y el seguidor de linea
@@ -155,8 +155,6 @@ void task_motor_generic(void *arg)
 				motorSetSpeed(task_params->assigned_motor, params.output);
 				motor_direction = params.output > 0;
 			}
-
-			//printf("%s // pulses count= %d # sum= %d # count_obj= %d # OUT= %d\n", task_params->task_name, evt.pulses_count, count_sum, objective_count, params.output);
     	}
     	else if(xQueueReceive(*(task_params->master_queue_rcv), &evt_master_queue_rcv, 10) == pdTRUE) // rcv from master task
     	{
