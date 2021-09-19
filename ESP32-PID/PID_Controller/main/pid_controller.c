@@ -97,7 +97,7 @@ void PID_Compute(PID_params_t *params_in)
 	params_in -> output = output;
 }
 
-void task_motor_generic(void *arg)
+void task_motor(void *arg)
 {
 	task_params_t *task_params = (task_params_t *) arg;
 
@@ -160,7 +160,7 @@ void task_motor_generic(void *arg)
     	{
     		objective_count = evt_master_queue_rcv.setpoint / DELTA_DISTANCE_PER_SLIT;
     		motor_direction = objective_count > 0;
-
+			count_sum = 0;
     		for(int i=0; i<HALL_SENSOR_COUNT; i++)
     		{
     			linefllwr_prop_const_local[i] = evt_master_queue_rcv.linefllwr_prop_const[i];
@@ -198,10 +198,10 @@ void master_task(void *arg)
 	task_params_D.master_queue_rcv = &master_task_motor_D_rcv_queue;
 	task_params_D.task_name = "TASK_Dgen";
 
-	xTaskCreate(task_motor_generic, "task_motor_gen", 2048, (void *)&task_params_A, 5, NULL);
-	xTaskCreate(task_motor_generic, "task_motor_gen", 2048, (void *)&task_params_B, 5, NULL);
-	xTaskCreate(task_motor_generic, "task_motor_gen", 2048, (void *)&task_params_C, 5, NULL);
-	xTaskCreate(task_motor_generic, "task_motor_gen", 2048, (void *)&task_params_D, 5, NULL);
+	xTaskCreate(task_motor, "task_motor_gen", 2048, (void *)&task_params_A, 5, NULL);
+	xTaskCreate(task_motor, "task_motor_gen", 2048, (void *)&task_params_B, 5, NULL);
+	xTaskCreate(task_motor, "task_motor_gen", 2048, (void *)&task_params_C, 5, NULL);
+	xTaskCreate(task_motor, "task_motor_gen", 2048, (void *)&task_params_D, 5, NULL);
 
 	vTaskDelay(200);
 	gpio_set_level(GPIO_READY_LED, 1);
@@ -230,14 +230,15 @@ void master_task(void *arg)
 
 	while(1)
 	{
-		vTaskDelay(2 * portTICK_PERIOD_MS); // a veces es necesario meter un delay para dejar que otras tareas se ejecuten.
-		if(!flag)
+		vTaskDelay(2000 / portTICK_PERIOD_MS); // a veces es necesario meter un delay para dejar que otras tareas se ejecuten.
+		if(flag < 3)
 		{
 			xQueueSend(master_task_motor_A_rcv_queue, &motor_A_queue, 0);
 			xQueueSend(master_task_motor_B_rcv_queue, &motor_B_queue, 0);
 			xQueueSend(master_task_motor_C_rcv_queue, &motor_C_queue, 0);
 			xQueueSend(master_task_motor_D_rcv_queue, &motor_D_queue, 0);
-			flag = 1;
+			flag++;
+			vTaskDelay(6000/portTICK_PERIOD_MS);
 		}
 	}
 }
@@ -448,6 +449,9 @@ void gpio_initialize()
 	gpio_set_direction(GPIO_ENABLE_MOTORS, GPIO_MODE_OUTPUT);
 	gpio_set_level(GPIO_ENABLE_MOTORS, 0);
 }
+
+
+
 
 /*
  * Funcion para el control de velocidad del motor
