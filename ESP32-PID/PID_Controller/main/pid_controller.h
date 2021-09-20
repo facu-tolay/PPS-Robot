@@ -24,7 +24,7 @@
 #define INCLUDE_vTaskDelay 1
 
 // PWM defines
-#define MIN_PWM_VALUE	2800
+#define MIN_PWM_VALUE	2500
 #define MAX_PWM_VALUE	8191
 
 #define POSITIVE_FEED ((float)1.75)
@@ -154,11 +154,11 @@ typedef struct {
 } encoder_linefllwr_event_t;
 
 typedef struct {
-	unsigned int dist_actual;
-	unsigned int dist_destino;
+	signed int dist_actual;
+	signed int dist_destino;
 	float _integral;
 	float _pre_error;
-	int output;
+	signed int output;
 } PID_params_t;
 
 // function prototypes

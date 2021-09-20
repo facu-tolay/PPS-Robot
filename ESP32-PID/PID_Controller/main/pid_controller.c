@@ -5,9 +5,9 @@
 #define ONE_TURN_DISPLACEMENT	(float)15.9593 // por cada vuelta de la rueda, se avanza 2.PI.r = PI x 5.08cm = 15.9593[cm]
 #define DELTA_DISTANCE_PER_SLIT	(float)(0.66497083)// cuantos [cm] avanza por cada ranura (ONE_TURN_DISPLACEMENT/CANT_RANURAS_ENCODER)
 
-#define _Kp (float)12
+#define _Kp (float)6
 #define _Ki (float)4
-#define _Kd (float)8
+#define _Kd (float)0.5
 #define _dt (float)TIMER_INTERVAL_RPM_MEASURE
 
 #define SETPOINT (float)150 // in [cm]
@@ -35,15 +35,12 @@ void PID_Compute(PID_params_t *params_in)
 {
 	float _integral = params_in -> _integral;
 	float _pre_error = params_in -> _pre_error;
-	unsigned int dist_destino = params_in -> dist_destino;
-	unsigned int dist_actual = params_in -> dist_actual;
-	float output;
+	signed int dist_destino = params_in -> dist_destino;
+	signed int dist_actual = params_in -> dist_actual;
+	signed int output;
 
 	// Calculate error
-	int error = dist_destino - dist_actual;
-
-	// Save error to previous error
-	_pre_error = error;
+	float error = dist_destino - dist_actual;
 
 	if(!error)
 	{
@@ -88,8 +85,10 @@ void PID_Compute(PID_params_t *params_in)
 			}
 		}
 
-		//printf("# Pout=%4.2f # Iout=%4.2f # Dout=%4.2f # OUT=%4.2f\n", Pout, Iout, Dout, output);
-		printf("%4.2f\n", output);
+		printf("err=%4.2f/ pre=%4.2f/ Pout=%4.2f/ Iout=%4.2f/ Dout=%4.2f/ OUT=%d\n", error, _pre_error, Pout, Iout, Dout, output);
+
+		// Save error to previous error
+		_pre_error = error;
 	}
 
 	params_in -> _integral = _integral;
@@ -106,8 +105,7 @@ void task_motor(void *arg)
 	float linefllwr_prop_const_local[HALL_SENSOR_COUNT] = {0};
 
 	int16_t count_sum = 0; // for accumulating pulses
-	//int16_t objective_count = (task_params->setpoint) / DELTA_DISTANCE_PER_SLIT;
-	//unsigned int motor_direction = objective_count > 0;
+
 	int16_t objective_count = 0;
 	int16_t correction_count = 0;
 	unsigned int motor_direction = 0;
@@ -161,6 +159,11 @@ void task_motor(void *arg)
     		objective_count = evt_master_queue_rcv.setpoint / DELTA_DISTANCE_PER_SLIT;
     		motor_direction = objective_count > 0;
 			count_sum = 0;
+
+			params._integral=0;
+			params._pre_error=0;
+			params.output=0;
+
     		for(int i=0; i<HALL_SENSOR_COUNT; i++)
     		{
     			linefllwr_prop_const_local[i] = evt_master_queue_rcv.linefllwr_prop_const[i];
@@ -230,15 +233,15 @@ void master_task(void *arg)
 
 	while(1)
 	{
-		vTaskDelay(2000 / portTICK_PERIOD_MS); // a veces es necesario meter un delay para dejar que otras tareas se ejecuten.
-		if(flag < 3)
+		vTaskDelay(500 / portTICK_PERIOD_MS); // a veces es necesario meter un delay para dejar que otras tareas se ejecuten.
+		if(flag < 2)
 		{
 			xQueueSend(master_task_motor_A_rcv_queue, &motor_A_queue, 0);
 			xQueueSend(master_task_motor_B_rcv_queue, &motor_B_queue, 0);
 			xQueueSend(master_task_motor_C_rcv_queue, &motor_C_queue, 0);
 			xQueueSend(master_task_motor_D_rcv_queue, &motor_D_queue, 0);
 			flag++;
-			vTaskDelay(6000/portTICK_PERIOD_MS);
+			vTaskDelay(8000 / portTICK_PERIOD_MS);
 		}
 	}
 }
@@ -449,9 +452,6 @@ void gpio_initialize()
 	gpio_set_direction(GPIO_ENABLE_MOTORS, GPIO_MODE_OUTPUT);
 	gpio_set_level(GPIO_ENABLE_MOTORS, 0);
 }
-
-
-
 
 /*
  * Funcion para el control de velocidad del motor
