@@ -163,6 +163,7 @@ typedef struct {
 
 // function prototypes
 void main_task(void *arg);
+void motor_task_creator(task_params_t *param_motor, char *taskName, uint8_t assignedMotor, xQueueHandle *masterReceiveQueue, xQueueHandle *encoderLineFllwrReceiveQueue);
 void PID_Compute(PID_params_t *params_in);
 
 void pwm_initialize();

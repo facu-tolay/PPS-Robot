@@ -105,7 +105,6 @@ void task_motor(void *arg)
 	float linefllwr_prop_const_local[HALL_SENSOR_COUNT] = {0};
 
 	int16_t count_sum = 0; // for accumulating pulses
-
 	int16_t objective_count = 0;
 	int16_t correction_count = 0;
 	unsigned int motor_direction = 0;
@@ -115,7 +114,7 @@ void task_motor(void *arg)
 			._pre_error = 0,
 			.dist_actual = 0,
 			.dist_destino = 0,
-			.output = 1
+			.output = 0
 	};
 
     while (1)
@@ -181,37 +180,10 @@ void master_task(void *arg)
 	uint8_t flag=0;
 
 	// generic task generation
-	task_params_A.assigned_motor = MOT_A_SEL;
-	task_params_A.rpm_count_rcv_queue = &encoder_linefllwr_motor_A_rcv_queue;
-	task_params_A.master_queue_rcv = &master_task_motor_A_rcv_queue;
-	task_params_A.task_name = "TASK_Agen";
-
-	task_params_B.assigned_motor = MOT_B_SEL;
-	task_params_B.rpm_count_rcv_queue = &encoder_linefllwr_motor_B_rcv_queue;
-	task_params_B.master_queue_rcv = &master_task_motor_B_rcv_queue;
-	task_params_B.task_name = "TASK_Bgen";
-
-	task_params_C.assigned_motor = MOT_C_SEL;
-	task_params_C.rpm_count_rcv_queue = &encoder_linefllwr_motor_C_rcv_queue;
-	task_params_C.master_queue_rcv = &master_task_motor_C_rcv_queue;
-	task_params_C.task_name = "TASK_Cgen";
-
-	task_params_D.assigned_motor = MOT_D_SEL;
-	task_params_D.rpm_count_rcv_queue = &encoder_linefllwr_motor_D_rcv_queue;
-	task_params_D.master_queue_rcv = &master_task_motor_D_rcv_queue;
-	task_params_D.task_name = "TASK_Dgen";
-
-	xTaskCreate(task_motor, "task_motor_gen", 2048, (void *)&task_params_A, 5, NULL);
-	xTaskCreate(task_motor, "task_motor_gen", 2048, (void *)&task_params_B, 5, NULL);
-	xTaskCreate(task_motor, "task_motor_gen", 2048, (void *)&task_params_C, 5, NULL);
-	xTaskCreate(task_motor, "task_motor_gen", 2048, (void *)&task_params_D, 5, NULL);
-
-	vTaskDelay(200);
-	gpio_set_level(GPIO_READY_LED, 1);
-	vTaskDelay(100);
-	gpio_set_level(GPIO_READY_LED, 0);
-	vTaskDelay(100);
-	gpio_set_level(GPIO_ENABLE_MOTORS, 1);
+	motor_task_creator(&task_params_A, "TASK_Agen", MOT_A_SEL, &master_task_motor_A_rcv_queue, &encoder_linefllwr_motor_A_rcv_queue);
+	motor_task_creator(&task_params_B, "TASK_Bgen", MOT_B_SEL, &master_task_motor_B_rcv_queue, &encoder_linefllwr_motor_B_rcv_queue);
+	motor_task_creator(&task_params_C, "TASK_Cgen", MOT_C_SEL, &master_task_motor_C_rcv_queue, &encoder_linefllwr_motor_C_rcv_queue);
+	motor_task_creator(&task_params_D, "TASK_Dgen", MOT_D_SEL, &master_task_motor_D_rcv_queue, &encoder_linefllwr_motor_D_rcv_queue);
 
 	//probar = {0}
 	master_task_motor_t motor_A_queue =  {
@@ -230,6 +202,13 @@ void master_task(void *arg)
 			.linefllwr_prop_const = {NEGATIVE_FEED, 0, POSITIVE_FEED},
 			.setpoint = 0
 	};
+
+	vTaskDelay(200);
+	gpio_set_level(GPIO_READY_LED, 1);
+	vTaskDelay(100);
+	gpio_set_level(GPIO_READY_LED, 0);
+	vTaskDelay(100);
+	gpio_set_level(GPIO_ENABLE_MOTORS, 1);
 
 	while(1)
 	{
@@ -283,6 +262,17 @@ void app_main(void)
 
     xTaskCreate(master_task, "master_task", 2048, NULL, 5, NULL);
     return;
+}
+
+void motor_task_creator(task_params_t *param_motor, char *taskName, uint8_t assignedMotor,
+		xQueueHandle *masterReceiveQueue, xQueueHandle *encoderLineFllwrReceiveQueue)
+{
+	param_motor->assigned_motor = assignedMotor;
+	param_motor->rpm_count_rcv_queue = encoderLineFllwrReceiveQueue;
+	param_motor->master_queue_rcv = masterReceiveQueue;
+	param_motor->task_name = taskName;
+	xTaskCreate(task_motor, "task_motor_gen", 2048, (void *)param_motor, 5, NULL);
+	return;
 }
 
 /*
