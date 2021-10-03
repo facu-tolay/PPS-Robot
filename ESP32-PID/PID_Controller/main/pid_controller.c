@@ -5,12 +5,12 @@
 #define ONE_TURN_DISPLACEMENT	(float)15.9593 // por cada vuelta de la rueda, se avanza 2.PI.r = PI x 5.08cm = 15.9593[cm]
 #define DELTA_DISTANCE_PER_SLIT	(float)(0.66497083)// cuantos [cm] avanza por cada ranura (ONE_TURN_DISPLACEMENT/CANT_RANURAS_ENCODER)
 
-#define _Kp (float)6
-#define _Ki (float)4
-#define _Kd (float)0.5
+#define _Kp (float) 3
+#define _Ki (float) 2
+#define _Kd (float) 2
 #define _dt (float)TIMER_INTERVAL_RPM_MEASURE
 
-#define SETPOINT (float)150 // in [cm]
+#define SETPOINT (float) 100 // in [cm]
 
 // Colas donde las task de cada motor independiente recibe
 // los pulsos sensados por el encoder y el seguidor de linea
@@ -199,7 +199,7 @@ void master_task(void *arg)
 			.setpoint = -SETPOINT
 	};
 	master_task_motor_t motor_D_queue =  {
-			.linefllwr_prop_const = {NEGATIVE_FEED, 0, POSITIVE_FEED},
+			.linefllwr_prop_const = {POSITIVE_FEED, 0, NEGATIVE_FEED},
 			.setpoint = 0
 	};
 
@@ -213,7 +213,7 @@ void master_task(void *arg)
 	while(1)
 	{
 		vTaskDelay(500 / portTICK_PERIOD_MS); // a veces es necesario meter un delay para dejar que otras tareas se ejecuten.
-		if(flag < 2)
+		if(flag < 3)
 		{
 			xQueueSend(master_task_motor_A_rcv_queue, &motor_A_queue, 0);
 			xQueueSend(master_task_motor_B_rcv_queue, &motor_B_queue, 0);
