@@ -28,7 +28,9 @@
 #define MAX_PWM_VALUE	8191
 
 #define POSITIVE_FEED ((float)1.75)
+#define POSITIVE_FEED_HIGH ((float)2.75)
 #define NEGATIVE_FEED ((float)-1.75)
+#define NEGATIVE_FEED_HIGH ((float)-2.75)
 
 // TIMER defines
 #define TIMER_DIVIDER				16  //  Hardware timer clock divider
@@ -46,10 +48,11 @@
 #define PCNT_INPUT_SIG_IO_D		27	// Pulse Input GPIO
 
 // SENSORES defines
-#define HALL_SENSOR_COUNT		3
-#define PNCT_INPUT_SENSOR_1		39
-#define PNCT_INPUT_SENSOR_2		34	
-#define PNCT_INPUT_SENSOR_3		35
+#define HALL_SENSOR_COUNT		4
+#define PNCT_INPUT_SENSOR_1		34
+#define PNCT_INPUT_SENSOR_2		35	
+#define PNCT_INPUT_SENSOR_3		15
+#define PNCT_INPUT_SENSOR_4		36
 
 // MOTOR defines
 #define MOT_1_A_GPIO	5

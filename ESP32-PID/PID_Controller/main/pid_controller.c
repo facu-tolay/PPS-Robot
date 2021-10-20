@@ -186,20 +186,20 @@ void master_task(void *arg)
 	motor_task_creator(&task_params_D, "TASK_Dgen", MOT_D_SEL, &master_task_motor_D_rcv_queue, &encoder_linefllwr_motor_D_rcv_queue);
 
 	//probar = {0}
-	master_task_motor_t motor_A_queue =  {
-			.linefllwr_prop_const = {0, 0, 0},
+	master_task_motor_t motor_A_data =  {
+			.linefllwr_prop_const = {0, 0, 0, 0},
 			.setpoint = -SETPOINT
 	};
-	master_task_motor_t motor_B_queue =  {
-			.linefllwr_prop_const = {NEGATIVE_FEED, 0, POSITIVE_FEED},
+	master_task_motor_t motor_B_data =  {
+			.linefllwr_prop_const = {NEGATIVE_FEED_HIGH, NEGATIVE_FEED, POSITIVE_FEED, POSITIVE_FEED_HIGH},
 			.setpoint = 0
 	};
-	master_task_motor_t motor_C_queue =  {
-			.linefllwr_prop_const = {0, 0, 0},
+	master_task_motor_t motor_C_data =  {
+			.linefllwr_prop_const = {0, 0, 0, 0},
 			.setpoint = -SETPOINT
 	};
-	master_task_motor_t motor_D_queue =  {
-			.linefllwr_prop_const = {POSITIVE_FEED, 0, NEGATIVE_FEED},
+	master_task_motor_t motor_D_data =  {
+			.linefllwr_prop_const = {NEGATIVE_FEED_HIGH, NEGATIVE_FEED, POSITIVE_FEED, POSITIVE_FEED_HIGH},
 			.setpoint = 0
 	};
 
@@ -215,10 +215,10 @@ void master_task(void *arg)
 		vTaskDelay(500 / portTICK_PERIOD_MS); // a veces es necesario meter un delay para dejar que otras tareas se ejecuten.
 		if(flag < 3)
 		{
-			xQueueSend(master_task_motor_A_rcv_queue, &motor_A_queue, 0);
-			xQueueSend(master_task_motor_B_rcv_queue, &motor_B_queue, 0);
-			xQueueSend(master_task_motor_C_rcv_queue, &motor_C_queue, 0);
-			xQueueSend(master_task_motor_D_rcv_queue, &motor_D_queue, 0);
+			xQueueSend(master_task_motor_A_rcv_queue, &motor_A_data, 0);
+			xQueueSend(master_task_motor_B_rcv_queue, &motor_B_data, 0);
+			xQueueSend(master_task_motor_C_rcv_queue, &motor_C_data, 0);
+			xQueueSend(master_task_motor_D_rcv_queue, &motor_D_data, 0);
 			flag++;
 			vTaskDelay(8000 / portTICK_PERIOD_MS);
 		}
@@ -233,16 +233,18 @@ void app_main(void)
     int pcnt_encoder_front = PCNT_UNIT_2;	
     int pcnt_encoder_back = PCNT_UNIT_3;
     int pcnt_linefllwr_left = PCNT_UNIT_4;
-    int pcnt_linefllwr_middle = PCNT_UNIT_5;
-    int pcnt_linefllwr_right = PCNT_UNIT_6;
+    int pcnt_linefllwr_middle_0 = PCNT_UNIT_5;
+    int pcnt_linefllwr_middle_1 = PCNT_UNIT_6;
+    int pcnt_linefllwr_right = PCNT_UNIT_7;
 
     pcnt_initialize(pcnt_encoder_left, PCNT_INPUT_SIG_IO_A);
     pcnt_initialize(pcnt_encoder_right, PCNT_INPUT_SIG_IO_B);
     pcnt_initialize(pcnt_encoder_front, PCNT_INPUT_SIG_IO_C);
     pcnt_initialize(pcnt_encoder_back, PCNT_INPUT_SIG_IO_D);
-    pcnt_initialize(pcnt_linefllwr_middle, PNCT_INPUT_SENSOR_2);
-    pcnt_initialize(pcnt_linefllwr_right, PNCT_INPUT_SENSOR_1);
-    pcnt_initialize(pcnt_linefllwr_left, PNCT_INPUT_SENSOR_3);
+    pcnt_initialize(pcnt_linefllwr_middle_0, PNCT_INPUT_SENSOR_1);
+    pcnt_initialize(pcnt_linefllwr_middle_1, PNCT_INPUT_SENSOR_2);
+    pcnt_initialize(pcnt_linefllwr_right, PNCT_INPUT_SENSOR_3);
+    pcnt_initialize(pcnt_linefllwr_left, PNCT_INPUT_SENSOR_4);
 
     // initialize queues
     encoder_linefllwr_motor_A_rcv_queue = xQueueCreate(10, sizeof(encoder_linefllwr_event_t));
@@ -310,6 +312,7 @@ void IRAM_ATTR isr_timer(void *para)
 		pcnt_get_counter_value(PCNT_UNIT_4, &hall_sensor_count[0]);
 		pcnt_get_counter_value(PCNT_UNIT_5, &hall_sensor_count[1]);
 		pcnt_get_counter_value(PCNT_UNIT_6, &hall_sensor_count[2]);
+		pcnt_get_counter_value(PCNT_UNIT_7, &hall_sensor_count[3]);
 
 		for(int i=0; i<HALL_SENSOR_COUNT; i++)
 		{
@@ -326,6 +329,7 @@ void IRAM_ATTR isr_timer(void *para)
 		restart_pulse_counter(PCNT_UNIT_3);
 		restart_pulse_counter(PCNT_UNIT_4);
 		restart_pulse_counter(PCNT_UNIT_5);
+		restart_pulse_counter(PCNT_UNIT_6);
 		restart_pulse_counter(PCNT_UNIT_6);
 	}
 
