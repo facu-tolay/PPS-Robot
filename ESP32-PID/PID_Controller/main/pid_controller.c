@@ -186,19 +186,19 @@ void master_task(void *arg)
 	motor_task_creator(&task_params_D, "TASK_Dgen", MOT_D_SEL, &master_task_motor_D_rcv_queue, &encoder_linefllwr_motor_D_rcv_queue);
 
 	//probar = {0}
-	master_task_motor_t motor_A_data =  {
-			.linefllwr_prop_const = {0, 0, 0, 0},
-			.setpoint = -SETPOINT
-	};
 	master_task_motor_t motor_B_data =  {
+			.linefllwr_prop_const = {0, 0, 0, 0},
+			.setpoint = SETPOINT
+	};
+	master_task_motor_t motor_A_data =  {
 			.linefllwr_prop_const = {NEGATIVE_FEED_HIGH, NEGATIVE_FEED, POSITIVE_FEED, POSITIVE_FEED_HIGH},
 			.setpoint = 0
 	};
-	master_task_motor_t motor_C_data =  {
-			.linefllwr_prop_const = {0, 0, 0, 0},
-			.setpoint = -SETPOINT
-	};
 	master_task_motor_t motor_D_data =  {
+			.linefllwr_prop_const = {0, 0, 0, 0},
+			.setpoint = SETPOINT
+	};
+	master_task_motor_t motor_C_data =  {
 			.linefllwr_prop_const = {NEGATIVE_FEED_HIGH, NEGATIVE_FEED, POSITIVE_FEED, POSITIVE_FEED_HIGH},
 			.setpoint = 0
 	};
@@ -330,7 +330,7 @@ void IRAM_ATTR isr_timer(void *para)
 		restart_pulse_counter(PCNT_UNIT_4);
 		restart_pulse_counter(PCNT_UNIT_5);
 		restart_pulse_counter(PCNT_UNIT_6);
-		restart_pulse_counter(PCNT_UNIT_6);
+		restart_pulse_counter(PCNT_UNIT_7);
 	}
 
     /* After the alarm has been triggered we need enable it again, so it is triggered the next time */
