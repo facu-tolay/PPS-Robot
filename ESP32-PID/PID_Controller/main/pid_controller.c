@@ -5,7 +5,7 @@
 #define ONE_TURN_DISPLACEMENT	(float)15.9593 // por cada vuelta de la rueda, se avanza 2.PI.r = PI x 5.08cm = 15.9593[cm]
 #define DELTA_DISTANCE_PER_SLIT	(float)(0.66497083)// cuantos [cm] avanza por cada ranura (ONE_TURN_DISPLACEMENT/CANT_RANURAS_ENCODER)
 
-#define _Kp (float) 3
+#define _Kp (float) 2.25
 #define _Ki (float) 2
 #define _Kd (float) 2
 #define _dt (float)TIMER_INTERVAL_RPM_MEASURE
@@ -85,7 +85,7 @@ void PID_Compute(PID_params_t *params_in)
 			}
 		}
 
-		printf("err=%4.2f/ pre=%4.2f/ Pout=%4.2f/ Iout=%4.2f/ Dout=%4.2f/ OUT=%d\n", error, _pre_error, Pout, Iout, Dout, output);
+		//printf("err=%4.2f/ pre=%4.2f/ Pout=%4.2f/ Iout=%4.2f/ Dout=%4.2f/ OUT=%d\n", error, _pre_error, Pout, Iout, Dout, output);
 
 		// Save error to previous error
 		_pre_error = error;
@@ -188,7 +188,7 @@ void master_task(void *arg)
 	//probar = {0}
 	master_task_motor_t motor_B_data =  {
 			.linefllwr_prop_const = {0, 0, 0, 0},
-			.setpoint = SETPOINT
+			.setpoint = -SETPOINT
 	};
 	master_task_motor_t motor_A_data =  {
 			.linefllwr_prop_const = {NEGATIVE_FEED_HIGH, NEGATIVE_FEED, POSITIVE_FEED, POSITIVE_FEED_HIGH},
@@ -241,10 +241,10 @@ void app_main(void)
     pcnt_initialize(pcnt_encoder_right, PCNT_INPUT_SIG_IO_B);
     pcnt_initialize(pcnt_encoder_front, PCNT_INPUT_SIG_IO_C);
     pcnt_initialize(pcnt_encoder_back, PCNT_INPUT_SIG_IO_D);
-    pcnt_initialize(pcnt_linefllwr_middle_0, PNCT_INPUT_SENSOR_1);
-    pcnt_initialize(pcnt_linefllwr_middle_1, PNCT_INPUT_SENSOR_2);
-    pcnt_initialize(pcnt_linefllwr_right, PNCT_INPUT_SENSOR_3);
-    pcnt_initialize(pcnt_linefllwr_left, PNCT_INPUT_SENSOR_4);
+    pcnt_initialize(pcnt_linefllwr_middle_0, PNCT_INPUT_SENSOR_2);
+    pcnt_initialize(pcnt_linefllwr_middle_1, PNCT_INPUT_SENSOR_3);
+    pcnt_initialize(pcnt_linefllwr_right, PNCT_INPUT_SENSOR_4);
+    pcnt_initialize(pcnt_linefllwr_left, PNCT_INPUT_SENSOR_5);
 
     // initialize queues
     encoder_linefllwr_motor_A_rcv_queue = xQueueCreate(10, sizeof(encoder_linefllwr_event_t));
