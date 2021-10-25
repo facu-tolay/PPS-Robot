@@ -1,16 +1,14 @@
 #include "pid_controller.h"
 
-#define WHEEL_DIAMETER			(float)5.08 // 2 pulgadas - expresado en [cm]
-#define CANT_RANURAS_ENCODER	(float)24
-#define ONE_TURN_DISPLACEMENT	(float)15.9593 // por cada vuelta de la rueda, se avanza 2.PI.r = PI x 5.08cm = 15.9593[cm]
-#define DELTA_DISTANCE_PER_SLIT	(float)(0.66497083)// cuantos [cm] avanza por cada ranura (ONE_TURN_DISPLACEMENT/CANT_RANURAS_ENCODER)
-
 #define _Kp (float) 2.25
 #define _Ki (float) 2
 #define _Kd (float) 2
 #define _dt (float)TIMER_INTERVAL_RPM_MEASURE
 
 #define SETPOINT (float) 100 // in [cm]
+
+// Cola de feedback desde las motor_task hacia master_task
+xQueueHandle master_task_feedback;
 
 // Colas donde las task de cada motor independiente recibe
 // los pulsos sensados por el encoder y el seguidor de linea
@@ -100,6 +98,11 @@ void task_motor(void *arg)
 {
 	task_params_t *task_params = (task_params_t *) arg;
 
+	master_task_feedback_t master_feedback = {
+		.status = TASK_STATUS_IDLE,
+		.task_name = task_params->task_name
+	};
+
 	encoder_linefllwr_event_t evt_interrupt;
 	master_task_motor_t evt_master_queue_rcv;
 	float linefllwr_prop_const_local[HALL_SENSOR_COUNT] = {0};
@@ -146,6 +149,12 @@ void task_motor(void *arg)
 			{
 				motorStop(task_params->assigned_motor);
 				count_sum = objective_count;
+
+				if(count_sum != 0)
+				{
+					master_feedback.status = TASK_STATUS_IDLE;
+					xQueueSend(master_task_feedback, &master_feedback, 0);
+				}
 			}
 			else
 			{
@@ -168,7 +177,13 @@ void task_motor(void *arg)
     			linefllwr_prop_const_local[i] = evt_master_queue_rcv.linefllwr_prop_const[i];
     		}
 
-    		printf("SETPOINT UPDATED!\n");
+    		if(objective_count != 0)
+    		{
+    			master_feedback.status = TASK_STATUS_WORKING;
+    			xQueueSend(master_task_feedback, &master_feedback, 0);
+    		}
+
+    		printf("<%s> SETPOINT UPDATED!\n", task_params->task_name);
     	}
 
     	//vTaskDelay(100); // a veces es necesario meter un delay para dejar que otras tareas se ejecuten.
@@ -177,30 +192,49 @@ void task_motor(void *arg)
 
 void master_task(void *arg)
 {
-	uint8_t flag=0;
+	master_task_feedback_t feedback_rcv = {0};
+
+	motor_task_status_t tasks_status[TASK_COUNT] = {
+			{
+				.status = TASK_STATUS_IDLE,
+				.task_name = TASK_A_NAME
+			},
+			{
+				.status = TASK_STATUS_IDLE,
+				.task_name = TASK_B_NAME
+			},
+			{
+				.status = TASK_STATUS_IDLE,
+				.task_name = TASK_C_NAME
+			},
+			{
+				.status = TASK_STATUS_IDLE,
+				.task_name = TASK_D_NAME
+			},
+	};
 
 	// generic task generation
-	motor_task_creator(&task_params_A, "TASK_Agen", MOT_A_SEL, &master_task_motor_A_rcv_queue, &encoder_linefllwr_motor_A_rcv_queue);
-	motor_task_creator(&task_params_B, "TASK_Bgen", MOT_B_SEL, &master_task_motor_B_rcv_queue, &encoder_linefllwr_motor_B_rcv_queue);
-	motor_task_creator(&task_params_C, "TASK_Cgen", MOT_C_SEL, &master_task_motor_C_rcv_queue, &encoder_linefllwr_motor_C_rcv_queue);
-	motor_task_creator(&task_params_D, "TASK_Dgen", MOT_D_SEL, &master_task_motor_D_rcv_queue, &encoder_linefllwr_motor_D_rcv_queue);
+	motor_task_creator(&task_params_A, TASK_A_NAME, MOT_A_SEL, &master_task_motor_A_rcv_queue, &encoder_linefllwr_motor_A_rcv_queue);
+	motor_task_creator(&task_params_B, TASK_B_NAME, MOT_B_SEL, &master_task_motor_B_rcv_queue, &encoder_linefllwr_motor_B_rcv_queue);
+	motor_task_creator(&task_params_C, TASK_C_NAME, MOT_C_SEL, &master_task_motor_C_rcv_queue, &encoder_linefllwr_motor_C_rcv_queue);
+	motor_task_creator(&task_params_D, TASK_D_NAME, MOT_D_SEL, &master_task_motor_D_rcv_queue, &encoder_linefllwr_motor_D_rcv_queue);
 
 	//probar = {0}
+	master_task_motor_t motor_A_data =  {
+			.linefllwr_prop_const = {NEGATIVE_FEED_HIGH, NEGATIVE_FEED, POSITIVE_FEED, POSITIVE_FEED_HIGH},
+			.setpoint = 0
+	};
 	master_task_motor_t motor_B_data =  {
 			.linefllwr_prop_const = {0, 0, 0, 0},
 			.setpoint = -SETPOINT
 	};
-	master_task_motor_t motor_A_data =  {
+	master_task_motor_t motor_C_data =  {
 			.linefllwr_prop_const = {NEGATIVE_FEED_HIGH, NEGATIVE_FEED, POSITIVE_FEED, POSITIVE_FEED_HIGH},
 			.setpoint = 0
 	};
 	master_task_motor_t motor_D_data =  {
 			.linefllwr_prop_const = {0, 0, 0, 0},
 			.setpoint = SETPOINT
-	};
-	master_task_motor_t motor_C_data =  {
-			.linefllwr_prop_const = {NEGATIVE_FEED_HIGH, NEGATIVE_FEED, POSITIVE_FEED, POSITIVE_FEED_HIGH},
-			.setpoint = 0
 	};
 
 	vTaskDelay(200);
@@ -210,17 +244,42 @@ void master_task(void *arg)
 	vTaskDelay(100);
 	gpio_set_level(GPIO_ENABLE_MOTORS, 1);
 
+	// send setpoints
+	for(int i=0; i<2; i++)
+	{
+		//if(tasks_status[0].status == TASK_STATUS_IDLE)
+		{
+			xQueueSend(master_task_motor_A_rcv_queue, &motor_A_data, 0);
+		}
+		//else if(tasks_status[1].status == TASK_STATUS_IDLE)
+		{
+			xQueueSend(master_task_motor_B_rcv_queue, &motor_B_data, 0);
+		}
+		//else if(tasks_status[2].status == TASK_STATUS_IDLE)
+		{
+			xQueueSend(master_task_motor_C_rcv_queue, &motor_C_data, 0);
+		}
+		//else if(tasks_status[3].status == TASK_STATUS_IDLE)
+		{
+			xQueueSend(master_task_motor_D_rcv_queue, &motor_D_data, 0);
+		}
+	}
+
 	while(1)
 	{
 		vTaskDelay(500 / portTICK_PERIOD_MS); // a veces es necesario meter un delay para dejar que otras tareas se ejecuten.
-		if(flag < 3)
+
+		if(xQueueReceive(master_task_feedback, &feedback_rcv, 10) == pdTRUE) // rcv feedback from motor tasks
 		{
-			xQueueSend(master_task_motor_A_rcv_queue, &motor_A_data, 0);
-			xQueueSend(master_task_motor_B_rcv_queue, &motor_B_data, 0);
-			xQueueSend(master_task_motor_C_rcv_queue, &motor_C_data, 0);
-			xQueueSend(master_task_motor_D_rcv_queue, &motor_D_data, 0);
-			flag++;
-			vTaskDelay(8000 / portTICK_PERIOD_MS);
+			for(int i=0; i<TASK_COUNT; i++)
+			{
+				if(strcmp(feedback_rcv.task_name, tasks_status[i].task_name)==0)
+				{
+					tasks_status[i].status = feedback_rcv.status;
+
+					printf("TASK <%s> STATUS UPDATED! status [%d]\n", feedback_rcv.task_name, feedback_rcv.status);
+				}
+			}
 		}
 	}
 }
@@ -247,6 +306,8 @@ void app_main(void)
     pcnt_initialize(pcnt_linefllwr_left, PNCT_INPUT_SENSOR_5);
 
     // initialize queues
+    master_task_feedback = xQueueCreate(10, sizeof(master_task_feedback_t));
+
     encoder_linefllwr_motor_A_rcv_queue = xQueueCreate(10, sizeof(encoder_linefllwr_event_t));
     encoder_linefllwr_motor_B_rcv_queue = xQueueCreate(10, sizeof(encoder_linefllwr_event_t));
     encoder_linefllwr_motor_C_rcv_queue = xQueueCreate(10, sizeof(encoder_linefllwr_event_t));
@@ -273,7 +334,7 @@ void motor_task_creator(task_params_t *param_motor, char *taskName, uint8_t assi
 	param_motor->rpm_count_rcv_queue = encoderLineFllwrReceiveQueue;
 	param_motor->master_queue_rcv = masterReceiveQueue;
 	param_motor->task_name = taskName;
-	xTaskCreate(task_motor, "task_motor_gen", 2048, (void *)param_motor, 5, NULL);
+	xTaskCreate(task_motor, taskName, 2048, (void *)param_motor, 5, NULL);
 	return;
 }
 
