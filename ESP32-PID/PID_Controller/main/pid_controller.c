@@ -6,7 +6,7 @@
 #define _dt (float)TIMER_INTERVAL_RPM_MEASURE
 
 #define SETPOINT (float) 100 // in [cm]
-#define DESIRED_RPM (float)25.0
+#define DESIRED_RPM (float)-25.0
 
 // Cola de feedback desde las motor_task hacia master_task
 xQueueHandle master_task_feedback;
@@ -34,14 +34,14 @@ void PID_Compute(PID_params_t *params_in)
 {
 	float _integral = params_in -> _integral;
 	float _pre_error = params_in -> _pre_error;
-	float dist_destino = params_in -> dist_destino;
-	float dist_actual = params_in -> dist_actual;
+	float rpm_destino = params_in -> rpm_destino;
+	float rpm_actual = params_in -> rpm_actual;
 	signed int output = params_in -> output;
 
 	// Calculate error
-	float error = dist_destino - dist_actual;
+	float error = rpm_destino - rpm_actual;
 
-	if((error >= 0 && error <= 1.0) || (error <= 0 && error >= -1))
+	if((error > 0 && error < 1) || (error < 0 && error > -1))
 	{
 		//_pre_error = 0;
 		//_integral = 0;
@@ -61,7 +61,7 @@ void PID_Compute(PID_params_t *params_in)
 		output = Pout + Iout + Dout;
 
 		// Restrict to max/min
-		if(error > 0)
+		if(rpm_destino > 0)
 		{
 			if(output >= MAX_PWM_VALUE)
 			{
@@ -72,7 +72,7 @@ void PID_Compute(PID_params_t *params_in)
 				output = MIN_PWM_VALUE;
 			}
 		}
-		else if(error < 0)
+		else if(rpm_destino < 0)
 		{
 			if(output <= -MAX_PWM_VALUE)
 			{
@@ -104,28 +104,29 @@ void task_motor(void *arg)
 		.task_name = task_params->task_name
 	};
 
-	// calculo de RPM
+	PID_params_t params = {
+		._integral = 0,
+		._pre_error = 0,
+		.rpm_actual = 0,
+		.rpm_destino = 0,
+		.output = 0
+	};
+
+	encoder_linefllwr_event_t evt_interrupt;
+	master_task_motor_t evt_master_queue_rcv;
+
+	// for RPM calculation
 	float rpm = 0;
 	float rpm_ant = 0;
 	float rpm_calc = 0;
 	int16_t hold_up_count = 0;
 
-	encoder_linefllwr_event_t evt_interrupt;
-	master_task_motor_t evt_master_queue_rcv;
-
+	// aux variables
 	float desired_rpm = 0;
 	uint8_t motor_direction = 0;
 	int16_t objective_count = 0;
 	int16_t count_sum = 0;
 	uint16_t measure_count = 0;
-
-	PID_params_t params = {
-			._integral = 0,
-			._pre_error = 0,
-			.dist_actual = 0,
-			.dist_destino = 0,
-			.output = 0
-	};
 
     while (1)
     {
@@ -143,26 +144,26 @@ void task_motor(void *arg)
 				hold_up_count += evt_interrupt.pulses_count;
 				measure_count++;
 
-				if(measure_count > 15 && hold_up_count < MIN_RPM_PULSE_COUNT) // detecting zero rpm
-				{
-					rpm_calc = 0;
-					rpm_ant = rpm;
-					hold_up_count = 0;
-					measure_count = 0;
-				}
-				else if(hold_up_count >= MIN_RPM_PULSE_COUNT)
+				if(hold_up_count >= MIN_RPM_PULSE_COUNT)
 				{
 					rpm = (hold_up_count/CANT_RANURAS_ENCODER) * (1/(measure_count*TIMER_INTERVAL_RPM_MEASURE)) * 60.0;// rpm
 					rpm_calc = (rpm + rpm_ant) / 2;
-					rpm_calc = motor_direction > 0? (rpm + rpm_ant) / 2 : -(rpm + rpm_ant) / 2;
-					rpm_ant = rpm;
 					hold_up_count = 0;
 					measure_count = 0;
 				}
+				else if(measure_count > 15) // detecting zero rpm
+				{
+					rpm = 0;
+					rpm_calc = 0;
+					hold_up_count = 0;
+					measure_count = 0;
+				}
+
+				rpm_ant = rpm;
 			}
 
-			params.dist_destino = desired_rpm;
-			params.dist_actual = rpm_calc;
+			params.rpm_destino = desired_rpm;
+			params.rpm_actual = motor_direction == DIRECTION_CW ? rpm_calc : -rpm_calc;
 			PID_Compute(&params);
 
 			printf("rpm %s: %4.3f - out: %d\n", task_params->task_name, rpm_calc, params.output);
@@ -170,12 +171,13 @@ void task_motor(void *arg)
 			motorSetSpeed(task_params->assigned_motor, params.output);
     	}
 
-    	// receive from master task
+    	// receive new params from master task
     	if(xQueueReceive(*(task_params->master_queue_rcv), &evt_master_queue_rcv, 10) == pdTRUE)
     	{
     		objective_count = evt_master_queue_rcv.setpoint / DELTA_DISTANCE_PER_SLIT;
     		desired_rpm = evt_master_queue_rcv.rpm;
-    		motor_direction = desired_rpm > 0? 1 : 0;
+    		motor_direction = desired_rpm > 0? DIRECTION_CW : DIRECTION_CCW;
+
 			measure_count = 0;
 			count_sum = 0;
 

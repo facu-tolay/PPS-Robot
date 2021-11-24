@@ -24,6 +24,7 @@
 
 #define INCLUDE_vTaskDelay 1
 
+// ENCODER PARAMS defines
 #define WHEEL_DIAMETER			(float)5.08 // 2 pulgadas - expresado en [cm]
 #define CANT_RANURAS_ENCODER	(float)24.0
 #define ONE_TURN_DISPLACEMENT	(float)15.9593 // por cada vuelta de la rueda, se avanza 2.PI.r = PI x 5.08cm = 15.9593[cm]
@@ -77,6 +78,9 @@
 #define MOT_B_SEL		1
 #define MOT_C_SEL		2
 #define MOT_D_SEL		3
+
+#define DIRECTION_CW	1
+#define DIRECTION_CCW	0
 
 // TASKS defines
 #define TASK_COUNT		4
@@ -202,8 +206,8 @@ typedef struct {
  * For PID computing
  * */
 typedef struct {
-	float dist_actual;
-	float dist_destino;
+	float rpm_actual;
+	float rpm_destino;
 	float _integral;
 	float _pre_error;
 	signed int output;
