@@ -1,12 +1,12 @@
 #include "pid_controller.h"
 
-#define _Kp (float) 5
-#define _Ki (float) 5
+#define _Kp (float) 15
+#define _Ki (float) 6
 #define _Kd (float) 1
 #define _dt (float)TIMER_INTERVAL_RPM_MEASURE
 
-#define SETPOINT (float) 100 // in [cm]
-#define DESIRED_RPM (float)-25.0
+#define SETPOINT (float) 1000 // in [cm]
+#define DESIRED_RPM (float)40.0
 
 // Cola de feedback desde las motor_task hacia master_task
 xQueueHandle master_task_feedback;
@@ -133,6 +133,7 @@ void task_motor(void *arg)
     	// receive from interrupt (encoder, line follower)
     	if(xQueueReceive(*(task_params->rpm_count_rcv_queue), &evt_interrupt, 10) == pdTRUE)
     	{
+    		// calculate RPM
 			if(evt_interrupt.pulses_count >= MIN_RPM_PULSE_COUNT)
 			{
 				rpm = (evt_interrupt.pulses_count/CANT_RANURAS_ENCODER) * (1/TIMER_INTERVAL_RPM_MEASURE) * 60.0;// rpm
@@ -162,13 +163,28 @@ void task_motor(void *arg)
 				rpm_ant = rpm;
 			}
 
+			// calculate setpoint
+			count_sum += evt_interrupt.pulses_count;
+			if(count_sum >= objective_count)
+			{
+				desired_rpm = 0;
+				count_sum = objective_count;
+			}
+
 			params.rpm_destino = desired_rpm;
 			params.rpm_actual = motor_direction == DIRECTION_CW ? rpm_calc : -rpm_calc;
-			PID_Compute(&params);
+
+			if(desired_rpm != 0)
+			{
+				PID_Compute(&params);
+				motorSetSpeed(task_params->assigned_motor, params.output);
+			}
+			else
+			{
+				motorStop(task_params->assigned_motor);
+			}
 
 			printf("rpm %s: %4.3f - out: %d\n", task_params->task_name, rpm_calc, params.output);
-
-			motorSetSpeed(task_params->assigned_motor, params.output);
     	}
 
     	// receive new params from master task
@@ -194,6 +210,9 @@ void task_motor(void *arg)
 
 void master_task(void *arg)
 {
+	float velocidades_lineales[3] = {0};
+	float velocidades_angulares[4] = {0};
+
 	master_task_feedback_t feedback_rcv = {0};
 
 	motor_task_status_t tasks_status[TASK_COUNT] = {
@@ -217,29 +236,31 @@ void master_task(void *arg)
 
 	// generic task generation
 	motor_task_creator(&task_params_A, TASK_A_NAME, MOT_A_SEL, &master_task_motor_A_rcv_queue, &encoder_linefllwr_motor_A_rcv_queue);
-	//motor_task_creator(&task_params_B, TASK_B_NAME, MOT_B_SEL, &master_task_motor_B_rcv_queue, &encoder_linefllwr_motor_B_rcv_queue);
-	//motor_task_creator(&task_params_C, TASK_C_NAME, MOT_C_SEL, &master_task_motor_C_rcv_queue, &encoder_linefllwr_motor_C_rcv_queue);
-	//motor_task_creator(&task_params_D, TASK_D_NAME, MOT_D_SEL, &master_task_motor_D_rcv_queue, &encoder_linefllwr_motor_D_rcv_queue);
+	motor_task_creator(&task_params_B, TASK_B_NAME, MOT_B_SEL, &master_task_motor_B_rcv_queue, &encoder_linefllwr_motor_B_rcv_queue);
+	motor_task_creator(&task_params_C, TASK_C_NAME, MOT_C_SEL, &master_task_motor_C_rcv_queue, &encoder_linefllwr_motor_C_rcv_queue);
+	motor_task_creator(&task_params_D, TASK_D_NAME, MOT_D_SEL, &master_task_motor_D_rcv_queue, &encoder_linefllwr_motor_D_rcv_queue);
+	velocidades_lineales[0] = 35;
+	calculo_matriz(velocidades_lineales, velocidades_angulares);
 
 	master_task_motor_t motor_A_data =  {
 			.linefllwr_prop_const = {NEGATIVE_FEED_HIGH, NEGATIVE_FEED, POSITIVE_FEED, POSITIVE_FEED_HIGH},
-			.setpoint = 0,
-			.rpm = DESIRED_RPM
+			.setpoint = SETPOINT,
+			.rpm = velocidades_angulares[1]
 	};
 	master_task_motor_t motor_B_data =  {
 			.linefllwr_prop_const = {0, 0, 0, 0},
-			.setpoint = -SETPOINT,
-			.rpm = DESIRED_RPM
+			.setpoint = SETPOINT,
+			.rpm = velocidades_angulares[2]
 	};
 	master_task_motor_t motor_C_data =  {
 			.linefllwr_prop_const = {NEGATIVE_FEED_HIGH, NEGATIVE_FEED, POSITIVE_FEED, POSITIVE_FEED_HIGH},
-			.setpoint = 0,
-			.rpm = DESIRED_RPM
+			.setpoint = SETPOINT,
+			.rpm = velocidades_angulares[3]
 	};
 	master_task_motor_t motor_D_data =  {
 			.linefllwr_prop_const = {0, 0, 0, 0},
 			.setpoint = SETPOINT,
-			.rpm = DESIRED_RPM
+			.rpm = velocidades_angulares[0]
 	};
 
 	vTaskDelay(200);
@@ -569,5 +590,48 @@ void restart_pulse_counter(int pcnt)
 	pcnt_counter_pause(pcnt);
 	pcnt_counter_clear(pcnt);
 	pcnt_counter_resume(pcnt);
+	return;
+}
+
+void calculo_matriz(float *vector_velocidad_lineal, float *vector_velocidad_angular)
+{
+	float radio_rueda=5.08;
+    int radio_robot=10;
+    double vel_lineal_Z = vector_velocidad_lineal[2] * radio_robot;
+
+    double angulo_base=45.0;
+    double angulo_incremento=90.0;
+
+    double vel_lineal_motores[4][3] = {0};
+    double vector_velocidades[3] = {vector_velocidad_lineal[0], vector_velocidad_lineal[1], 1};
+
+    vel_lineal_motores[0][0] = -1*sin(angulo_base*M_PI/RAD);
+    vel_lineal_motores[0][1] = cos(angulo_base*M_PI/RAD);
+    vel_lineal_motores[0][2] = vel_lineal_Z; 
+    vel_lineal_motores[1][0] = -1*sin((angulo_base+angulo_incremento)*M_PI/RAD);
+    vel_lineal_motores[1][1] = cos((angulo_base+angulo_incremento)*M_PI/RAD);
+    vel_lineal_motores[1][2] = vel_lineal_Z; 
+    vel_lineal_motores[2][0] = -1*sin((angulo_base+angulo_incremento*2)*M_PI/RAD);
+    vel_lineal_motores[2][1] = cos((angulo_base+angulo_incremento*2)*M_PI/RAD);
+    vel_lineal_motores[2][2] = vel_lineal_Z; 
+    vel_lineal_motores[3][0] = -1*sin((angulo_base+angulo_incremento*3)*M_PI/RAD);
+    vel_lineal_motores[3][1] = cos((angulo_base+angulo_incremento*3)*M_PI/RAD);
+    vel_lineal_motores[3][2] = vel_lineal_Z;
+
+    for (int i = 0; i < 4; i++)
+    {
+        for (int j = 0; j < 3; j++)
+        {
+            vector_velocidad_angular[i] += vel_lineal_motores[i][j] * vector_velocidades[j];   
+        }
+		vector_velocidad_angular[i] /= radio_rueda;
+		vector_velocidad_angular[i] *= 30/M_PI;
+    }
+
+    for (int i = 0; i < 4; i++)
+    {
+        printf(" %f -", vector_velocidad_angular[i]);
+    }
+    
 	return;
 }

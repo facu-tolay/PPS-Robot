@@ -10,6 +10,7 @@
 
 #include <stdio.h>
 #include <string.h>
+#include <math.h>
 #include "esp_types.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
@@ -96,6 +97,9 @@
 
 // PWM defines
 #define CANT_LEDC_CHANNELS	8
+
+// Matriz defines
+#define RAD 180
 
 ledc_channel_config_t ledc_channel[CANT_LEDC_CHANNELS] = {
 	{
@@ -234,4 +238,5 @@ void gpio_initialize();
 void restart_pulse_counter(int pcnt);
 void motorSetSpeed(uint8_t selection, signed int pwm_value);
 void motorStop(uint8_t selection);
+void calculo_matriz(float *vector_velocidad_lineal, float *vector_velocidad_angular);
 #endif /* MAIN_PID_CONTROLLER_H_ */
