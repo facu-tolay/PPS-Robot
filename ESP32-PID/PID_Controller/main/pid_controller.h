@@ -35,6 +35,8 @@
 #define MIN_PWM_VALUE	1200
 #define MAX_PWM_VALUE	8191
 
+#define CANT_LEDC_CHANNELS	8
+
 #define POSITIVE_FEED		((float)0.75)
 #define POSITIVE_FEED_HIGH	((float)2.75)
 #define NEGATIVE_FEED		((float)-0.75)
@@ -63,6 +65,8 @@
 #define PNCT_INPUT_SENSOR_4		15
 #define PNCT_INPUT_SENSOR_5		36
 
+// RPM defines
+#define RPM_BUFFER_SIZE			5
 #define MIN_RPM_PULSE_COUNT		6
 
 // MOTOR defines
@@ -95,8 +99,9 @@
 #define TASK_STATUS_WORKING 1
 #define TASK_STATUS_ERROR	255
 
-// PWM defines
-#define CANT_LEDC_CHANNELS	8
+// MASTER TASK states defines
+#define ST_MT_INIT			0
+#define ST_MT_GATHER_RPM	1
 
 // Matriz defines
 #define RAD 180
@@ -186,6 +191,7 @@ typedef struct {
  * */
 typedef struct {
 	uint8_t status;
+	float average_rpm;
 	char *task_name;
 } master_task_feedback_t;
 
@@ -229,6 +235,8 @@ typedef struct {
 void main_task(void *arg);
 void motor_task_creator(task_params_t *param_motor, char *taskName, uint8_t assignedMotor, xQueueHandle *masterReceiveQueue, xQueueHandle *encoderLineFllwrReceiveQueue);
 void PID_Compute(PID_params_t *params_in);
+float calculate_average(float *rpm_buffer, uint8_t size);
+void calculo_matriz(float *vector_velocidad_lineal, float *vector_velocidad_angular);
 
 void pwm_initialize();
 void pcnt_initialize(int unit, int signal_gpio_in);
@@ -238,5 +246,4 @@ void gpio_initialize();
 void restart_pulse_counter(int pcnt);
 void motorSetSpeed(uint8_t selection, signed int pwm_value);
 void motorStop(uint8_t selection);
-void calculo_matriz(float *vector_velocidad_lineal, float *vector_velocidad_angular);
 #endif /* MAIN_PID_CONTROLLER_H_ */

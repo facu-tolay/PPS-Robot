@@ -1,11 +1,11 @@
 #include "pid_controller.h"
 
-#define _Kp (float) 15
-#define _Ki (float) 6
-#define _Kd (float) 1
+#define _Kp (float)	15
+#define _Ki (float) 7
+#define _Kd (float) 0.75
 #define _dt (float)TIMER_INTERVAL_RPM_MEASURE
 
-#define SETPOINT (float) 1000 // in [cm]
+#define SETPOINT (float) 100 // in [cm]
 #define DESIRED_RPM (float)40.0
 
 // Cola de feedback desde las motor_task hacia master_task
@@ -101,6 +101,7 @@ void task_motor(void *arg)
 
 	master_task_feedback_t master_feedback = {
 		.status = TASK_STATUS_IDLE,
+		.average_rpm = 0,
 		.task_name = task_params->task_name
 	};
 
@@ -120,6 +121,9 @@ void task_motor(void *arg)
 	float rpm_ant = 0;
 	float rpm_calc = 0;
 	int16_t hold_up_count = 0;
+
+	float rpm_buffer[RPM_BUFFER_SIZE];
+	uint8_t rpm_index = 0;
 
 	// aux variables
 	float desired_rpm = 0;
@@ -163,19 +167,47 @@ void task_motor(void *arg)
 				rpm_ant = rpm;
 			}
 
-			// calculate setpoint
+			// store RPM into buffer
+			if(master_feedback.status == TASK_STATUS_WORKING)
+			{
+				rpm_buffer[rpm_index++] = rpm_calc;
+				if(rpm_index >= RPM_BUFFER_SIZE)
+				{
+					rpm_index = 0;
+
+					// notify rpm average to master task
+					master_feedback.average_rpm = calculate_average(rpm_buffer, RPM_BUFFER_SIZE);
+					xQueueSend(master_task_feedback, &master_feedback, 0);
+				}
+			}
+
+			// calculate distance setpoint
 			count_sum += evt_interrupt.pulses_count;
 			if(count_sum >= objective_count)
 			{
-				desired_rpm = 0;
 				count_sum = objective_count;
+
+				memset(rpm_buffer, 0, sizeof(rpm_buffer));
+				rpm_index = 0;
+
+				// notify master task that has arrived
+				if(desired_rpm != 0)
+				{
+					desired_rpm = 0;
+
+					master_feedback.status = TASK_STATUS_IDLE;
+					master_feedback.average_rpm = 0;
+					xQueueSend(master_task_feedback, &master_feedback, 0);
+				}
+
 			}
 
-			params.rpm_destino = desired_rpm;
-			params.rpm_actual = motor_direction == DIRECTION_CW ? rpm_calc : -rpm_calc;
-
+			// calculate new PID value
 			if(desired_rpm != 0)
 			{
+				params.rpm_destino = desired_rpm;
+				params.rpm_actual = motor_direction == DIRECTION_CW ? rpm_calc : -rpm_calc;
+
 				PID_Compute(&params);
 				motorSetSpeed(task_params->assigned_motor, params.output);
 			}
@@ -184,7 +216,7 @@ void task_motor(void *arg)
 				motorStop(task_params->assigned_motor);
 			}
 
-			printf("rpm %s: %4.3f - out: %d\n", task_params->task_name, rpm_calc, params.output);
+			//printf("rpm %s: %4.3f - out: %d\n", task_params->task_name, rpm_calc, params.output);
     	}
 
     	// receive new params from master task
@@ -200,6 +232,9 @@ void task_motor(void *arg)
 			params._integral=0;
 			params._pre_error=0;
 
+			memset(rpm_buffer, 0, sizeof(rpm_buffer));
+			rpm_index = 0;
+
     		master_feedback.status = TASK_STATUS_WORKING;
 			xQueueSend(master_task_feedback, &master_feedback, 0);
 
@@ -212,6 +247,8 @@ void master_task(void *arg)
 {
 	float velocidades_lineales[3] = {0};
 	float velocidades_angulares[4] = {0};
+
+	uint8_t state = ST_MT_INIT;
 
 	master_task_feedback_t feedback_rcv = {0};
 
@@ -239,13 +276,14 @@ void master_task(void *arg)
 	motor_task_creator(&task_params_B, TASK_B_NAME, MOT_B_SEL, &master_task_motor_B_rcv_queue, &encoder_linefllwr_motor_B_rcv_queue);
 	motor_task_creator(&task_params_C, TASK_C_NAME, MOT_C_SEL, &master_task_motor_C_rcv_queue, &encoder_linefllwr_motor_C_rcv_queue);
 	motor_task_creator(&task_params_D, TASK_D_NAME, MOT_D_SEL, &master_task_motor_D_rcv_queue, &encoder_linefllwr_motor_D_rcv_queue);
+
 	velocidades_lineales[0] = 35;
 	calculo_matriz(velocidades_lineales, velocidades_angulares);
 
 	master_task_motor_t motor_A_data =  {
 			.linefllwr_prop_const = {NEGATIVE_FEED_HIGH, NEGATIVE_FEED, POSITIVE_FEED, POSITIVE_FEED_HIGH},
 			.setpoint = SETPOINT,
-			.rpm = velocidades_angulares[1]
+			.rpm = velocidades_angulares[0]
 	};
 	master_task_motor_t motor_B_data =  {
 			.linefllwr_prop_const = {0, 0, 0, 0},
@@ -255,56 +293,61 @@ void master_task(void *arg)
 	master_task_motor_t motor_C_data =  {
 			.linefllwr_prop_const = {NEGATIVE_FEED_HIGH, NEGATIVE_FEED, POSITIVE_FEED, POSITIVE_FEED_HIGH},
 			.setpoint = SETPOINT,
-			.rpm = velocidades_angulares[3]
+			.rpm = velocidades_angulares[1]
 	};
 	master_task_motor_t motor_D_data =  {
 			.linefllwr_prop_const = {0, 0, 0, 0},
 			.setpoint = SETPOINT,
-			.rpm = velocidades_angulares[0]
+			.rpm = velocidades_angulares[3]
 	};
-
-	vTaskDelay(200);
-	gpio_set_level(GPIO_READY_LED, 1);
-	vTaskDelay(100);
-	gpio_set_level(GPIO_READY_LED, 0);
-	vTaskDelay(100);
-	gpio_set_level(GPIO_ENABLE_MOTORS, 1);
-
-	// send setpoints
-	//for(int i=0; i<2; i++)
-	{
-		//if(tasks_status[0].status == TASK_STATUS_IDLE)
-		{
-			xQueueSend(master_task_motor_A_rcv_queue, &motor_A_data, 0);
-		}
-		//else if(tasks_status[1].status == TASK_STATUS_IDLE)
-		{
-			xQueueSend(master_task_motor_B_rcv_queue, &motor_B_data, 0);
-		}
-		//else if(tasks_status[2].status == TASK_STATUS_IDLE)
-		{
-			xQueueSend(master_task_motor_C_rcv_queue, &motor_C_data, 0);
-		}
-		//else if(tasks_status[3].status == TASK_STATUS_IDLE)
-		{
-			xQueueSend(master_task_motor_D_rcv_queue, &motor_D_data, 0);
-		}
-	}
 
 	while(1)
 	{
-		vTaskDelay(500 / portTICK_PERIOD_MS); // a veces es necesario meter un delay para dejar que otras tareas se ejecuten.
+		vTaskDelay(10 / portTICK_PERIOD_MS); // a veces es necesario meter un delay para dejar que otras tareas se ejecuten.
 
-		if(xQueueReceive(master_task_feedback, &feedback_rcv, 10) == pdTRUE) // rcv feedback from motor tasks
+		switch(state)
 		{
-			for(int i=0; i<TASK_COUNT; i++)
+			case ST_MT_INIT:
 			{
-				if(strcmp(feedback_rcv.task_name, tasks_status[i].task_name)==0)
-				{
-					tasks_status[i].status = feedback_rcv.status;
+				vTaskDelay(200);
+				gpio_set_level(GPIO_READY_LED, 1);
+				vTaskDelay(100);
+				gpio_set_level(GPIO_READY_LED, 0);
+				vTaskDelay(100);
+				gpio_set_level(GPIO_ENABLE_MOTORS, 1);
 
-					printf("TASK <%s> STATUS UPDATED! status [%d]\n", feedback_rcv.task_name, feedback_rcv.status);
+				// send setpoints
+				xQueueSend(master_task_motor_A_rcv_queue, &motor_A_data, 0);
+				xQueueSend(master_task_motor_B_rcv_queue, &motor_B_data, 0);
+				xQueueSend(master_task_motor_C_rcv_queue, &motor_C_data, 0);
+				xQueueSend(master_task_motor_D_rcv_queue, &motor_D_data, 0);
+
+				state = ST_MT_GATHER_RPM;
+				break;
+			}
+
+			case ST_MT_GATHER_RPM:
+			{
+				// rcv feedback from motor tasks
+				if(xQueueReceive(master_task_feedback, &feedback_rcv, 10) == pdTRUE)
+				{
+					for(int i=0; i<TASK_COUNT; i++)
+					{
+						if(strcmp(feedback_rcv.task_name, tasks_status[i].task_name)==0)
+						{
+							tasks_status[i].status = feedback_rcv.status;
+
+							printf("TASK <%s> UPDATED! status[%d] avg_rpm[%4.2f]\n", feedback_rcv.task_name, feedback_rcv.status, feedback_rcv.average_rpm);
+						}
+					}
 				}
+
+				break;
+			}
+
+			default:
+			{
+				break;
 			}
 		}
 	}
@@ -634,4 +677,25 @@ void calculo_matriz(float *vector_velocidad_lineal, float *vector_velocidad_angu
     }
     
 	return;
+}
+
+float calculate_average(float *rpm_buffer, uint8_t size)
+{
+	if(!size)
+	{
+		return 0;
+	}
+	else if(size == 1)
+	{
+		return rpm_buffer[0];
+	}
+	else
+	{
+		for(int i=1; i<size; i++)
+		{
+			rpm_buffer[0] += rpm_buffer[i];
+		}
+
+		return rpm_buffer[0]/size;
+	}
 }
