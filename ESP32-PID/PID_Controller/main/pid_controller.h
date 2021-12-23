@@ -25,11 +25,15 @@
 
 #define INCLUDE_vTaskDelay 1
 
+// ROBOT body defines
+#define ROBOT_RADIUS			(float)0.14
+
 // ENCODER PARAMS defines
-#define WHEEL_DIAMETER			(float)5.08 // 2 pulgadas - expresado en [cm]
-#define CANT_RANURAS_ENCODER	(float)24.0
-#define ONE_TURN_DISPLACEMENT	(float)15.9593 // por cada vuelta de la rueda, se avanza 2.PI.r = PI x 5.08cm = 15.9593[cm]
-#define DELTA_DISTANCE_PER_SLIT	(float)(0.66497083)// cuantos [cm] avanza por cada ranura (ONE_TURN_DISPLACEMENT/CANT_RANURAS_ENCODER)
+#define WHEEL_DIAMETER			(float)(0.0508) // 2 pulgadas - expresado en [m]
+#define WHEEL_RADIUS			(float)(WHEEL_DIAMETER/2)
+#define CANT_RANURAS_ENCODER	(float)(24.0)
+#define ONE_TURN_DISPLACEMENT	(float)(0.159593) // por cada vuelta de la rueda, se avanza 2.PI.r = PI x 5.08cm = 15.9593[cm] = 0.159593[m]
+#define DELTA_DISTANCE_PER_SLIT	(float)(0.0066497)// cuantos [m] avanza por cada ranura (ONE_TURN_DISPLACEMENT/CANT_RANURAS_ENCODER)
 
 // PWM defines
 #define MIN_PWM_VALUE	1200
@@ -100,8 +104,10 @@
 #define TASK_STATUS_ERROR	255
 
 // MASTER TASK states defines
-#define ST_MT_INIT			0
-#define ST_MT_GATHER_RPM	1
+#define ST_MT_INIT				0
+#define ST_MT_SEND_SETPOINTS	1
+#define ST_MT_GATHER_RPM		2
+#define ST_MT_CALC_RPM_COMP		3
 
 // Matriz defines
 #define RAD 180
@@ -213,6 +219,14 @@ typedef struct {
 } encoder_linefllwr_event_t;
 
 /*
+ * For the RPM queue to calculate inverse Jacobian
+ * */
+typedef struct {
+	float rpm;
+	uint8_t busy;
+} rpm_queue_t;
+
+/*
  * For PID computing
  * */
 typedef struct {
@@ -228,6 +242,7 @@ typedef struct {
  * */
 typedef struct {
 	uint8_t status;
+	uint8_t motor_direction;
 	char *task_name;
 } motor_task_status_t;
 
@@ -236,7 +251,9 @@ void main_task(void *arg);
 void motor_task_creator(task_params_t *param_motor, char *taskName, uint8_t assignedMotor, xQueueHandle *masterReceiveQueue, xQueueHandle *encoderLineFllwrReceiveQueue);
 void PID_Compute(PID_params_t *params_in);
 float calculate_average(float *rpm_buffer, uint8_t size);
-void calculo_matriz(float *vector_velocidad_lineal, float *vector_velocidad_angular);
+void calculo_matriz_cinematica_inversa(float *vector_velocidad_lineal, float *vector_velocidad_angular);
+void calculo_matriz_cinematica_directa(rpm_queue_t *vector_velocidad_angular, float *vector_velocidad_lineal);
+void calculo_error_velocidades_lineales(float *velocidad_lineal, float *velocidad_lineal_real, float *delta_velocidad_lineal);
 
 void pwm_initialize();
 void pcnt_initialize(int unit, int signal_gpio_in);

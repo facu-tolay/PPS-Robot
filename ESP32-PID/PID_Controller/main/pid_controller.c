@@ -5,8 +5,8 @@
 #define _Kd (float) 0.75
 #define _dt (float)TIMER_INTERVAL_RPM_MEASURE
 
-#define SETPOINT (float) 100 // in [cm]
-#define DESIRED_RPM (float)40.0
+#define SETPOINT (float)1000 // in [m]
+#define DESIRED_RPM (float)80
 
 // Cola de feedback desde las motor_task hacia master_task
 xQueueHandle master_task_feedback;
@@ -99,7 +99,7 @@ void task_motor(void *arg)
 {
 	task_params_t *task_params = (task_params_t *) arg;
 
-	master_task_feedback_t master_feedback = {
+	master_task_feedback_t task_current_status = {
 		.status = TASK_STATUS_IDLE,
 		.average_rpm = 0,
 		.task_name = task_params->task_name
@@ -119,7 +119,6 @@ void task_motor(void *arg)
 	// for RPM calculation
 	float rpm = 0;
 	float rpm_ant = 0;
-	float rpm_calc = 0;
 	int16_t hold_up_count = 0;
 
 	float rpm_buffer[RPM_BUFFER_SIZE];
@@ -141,7 +140,8 @@ void task_motor(void *arg)
 			if(evt_interrupt.pulses_count >= MIN_RPM_PULSE_COUNT)
 			{
 				rpm = (evt_interrupt.pulses_count/CANT_RANURAS_ENCODER) * (1/TIMER_INTERVAL_RPM_MEASURE) * 60.0;// rpm
-				rpm_calc = (rpm + rpm_ant) / 2;
+				rpm = (rpm + rpm_ant) / 2;
+				rpm = motor_direction == DIRECTION_CW ? rpm : -rpm;
 				rpm_ant = rpm;
 			}
 			else
@@ -152,14 +152,14 @@ void task_motor(void *arg)
 				if(hold_up_count >= MIN_RPM_PULSE_COUNT)
 				{
 					rpm = (hold_up_count/CANT_RANURAS_ENCODER) * (1/(measure_count*TIMER_INTERVAL_RPM_MEASURE)) * 60.0;// rpm
-					rpm_calc = (rpm + rpm_ant) / 2;
+					rpm = (rpm + rpm_ant) / 2;
+					rpm = motor_direction == DIRECTION_CW ? rpm : -rpm;
 					hold_up_count = 0;
 					measure_count = 0;
 				}
 				else if(measure_count > 15) // detecting zero rpm
 				{
 					rpm = 0;
-					rpm_calc = 0;
 					hold_up_count = 0;
 					measure_count = 0;
 				}
@@ -167,53 +167,63 @@ void task_motor(void *arg)
 				rpm_ant = rpm;
 			}
 
-			// store RPM into buffer
-			if(master_feedback.status == TASK_STATUS_WORKING)
+			// store RPM into buffer for calculating average
+			if(task_current_status.status == TASK_STATUS_WORKING)
 			{
-				rpm_buffer[rpm_index++] = rpm_calc;
+				rpm_buffer[rpm_index++] = rpm;
 				if(rpm_index >= RPM_BUFFER_SIZE)
 				{
 					rpm_index = 0;
 
 					// notify rpm average to master task
-					master_feedback.average_rpm = calculate_average(rpm_buffer, RPM_BUFFER_SIZE);
-					xQueueSend(master_task_feedback, &master_feedback, 0);
+					task_current_status.average_rpm = calculate_average(rpm_buffer, RPM_BUFFER_SIZE);
+					xQueueSend(master_task_feedback, &task_current_status, 0);
 				}
-			}
-
-			// calculate distance setpoint
-			count_sum += evt_interrupt.pulses_count;
-			if(count_sum >= objective_count)
-			{
-				count_sum = objective_count;
-
-				memset(rpm_buffer, 0, sizeof(rpm_buffer));
-				rpm_index = 0;
-
-				// notify master task that has arrived
-				if(desired_rpm != 0)
-				{
-					desired_rpm = 0;
-
-					master_feedback.status = TASK_STATUS_IDLE;
-					master_feedback.average_rpm = 0;
-					xQueueSend(master_task_feedback, &master_feedback, 0);
-				}
-
-			}
-
-			// calculate new PID value
-			if(desired_rpm != 0)
-			{
-				params.rpm_destino = desired_rpm;
-				params.rpm_actual = motor_direction == DIRECTION_CW ? rpm_calc : -rpm_calc;
-
-				PID_Compute(&params);
-				motorSetSpeed(task_params->assigned_motor, params.output);
 			}
 			else
 			{
-				motorStop(task_params->assigned_motor);
+				rpm_index = 0;
+			}
+
+			if(task_current_status.status == TASK_STATUS_WORKING)
+			{
+				// calculate distance setpoint
+				count_sum += evt_interrupt.pulses_count;
+				if(count_sum >= objective_count)
+				{
+					count_sum = objective_count;
+
+					memset(rpm_buffer, 0, sizeof(rpm_buffer));
+					rpm_index = 0;
+
+					// notify master task that has arrived
+					if(desired_rpm != 0)
+					{
+						desired_rpm = 0;
+
+						task_current_status.status = TASK_STATUS_IDLE;
+						task_current_status.average_rpm = 0;
+						xQueueSend(master_task_feedback, &task_current_status, 0);
+					}
+
+				}
+			}
+
+			if(task_current_status.status == TASK_STATUS_WORKING)
+			{
+				// calculate new PID value
+				if(desired_rpm != 0)
+				{
+					params.rpm_destino = desired_rpm;
+					params.rpm_actual = rpm;
+
+					PID_Compute(&params);
+					motorSetSpeed(task_params->assigned_motor, params.output);
+				}
+				else
+				{
+					motorStop(task_params->assigned_motor);
+				}
 			}
 
 			//printf("rpm %s: %4.3f - out: %d\n", task_params->task_name, rpm_calc, params.output);
@@ -235,8 +245,8 @@ void task_motor(void *arg)
 			memset(rpm_buffer, 0, sizeof(rpm_buffer));
 			rpm_index = 0;
 
-    		master_feedback.status = TASK_STATUS_WORKING;
-			xQueueSend(master_task_feedback, &master_feedback, 0);
+    		task_current_status.status = TASK_STATUS_WORKING;
+			xQueueSend(master_task_feedback, &task_current_status, 0);
 
     		printf("<%s> SETPOINT UPDATED!\n", task_params->task_name);
     	}
@@ -246,7 +256,12 @@ void task_motor(void *arg)
 void master_task(void *arg)
 {
 	float velocidades_lineales[3] = {0};
-	float velocidades_angulares[4] = {0};
+	float velocidades_lineales_reales[3] = {0};
+	float delta_velocidad_lineal[3] = {0};
+
+	float velocidades_angulares_motores[4] = {0};
+    float velocidad_angular_compensacion[4] = {0};
+    float velocidad_angular_compensada[4] = {0};
 
 	uint8_t state = ST_MT_INIT;
 
@@ -268,7 +283,27 @@ void master_task(void *arg)
 			{
 				.status = TASK_STATUS_IDLE,
 				.task_name = TASK_D_NAME
+			}
+	};
+
+	uint8_t rpm_queue_size = 0;
+	rpm_queue_t rpm_queue[TASK_COUNT] = {
+			{
+				.rpm = 0,
+				.busy = 0
 			},
+			{
+				.rpm = 0,
+				.busy = 0
+			},
+			{
+				.rpm = 0,
+				.busy = 0
+			},
+			{
+				.rpm = 0,
+				.busy = 0
+			}
 	};
 
 	// generic task generation
@@ -277,28 +312,29 @@ void master_task(void *arg)
 	motor_task_creator(&task_params_C, TASK_C_NAME, MOT_C_SEL, &master_task_motor_C_rcv_queue, &encoder_linefllwr_motor_C_rcv_queue);
 	motor_task_creator(&task_params_D, TASK_D_NAME, MOT_D_SEL, &master_task_motor_D_rcv_queue, &encoder_linefllwr_motor_D_rcv_queue);
 
-	velocidades_lineales[0] = 35;
-	calculo_matriz(velocidades_lineales, velocidades_angulares);
+	velocidades_lineales[0] = DESIRED_RPM;
+	velocidades_lineales[1] = DESIRED_RPM;
+	calculo_matriz_cinematica_inversa(velocidades_lineales, velocidades_angulares_motores);
 
 	master_task_motor_t motor_A_data =  {
 			.linefllwr_prop_const = {NEGATIVE_FEED_HIGH, NEGATIVE_FEED, POSITIVE_FEED, POSITIVE_FEED_HIGH},
 			.setpoint = SETPOINT,
-			.rpm = velocidades_angulares[0]
+			.rpm = velocidades_angulares_motores[0]
 	};
 	master_task_motor_t motor_B_data =  {
 			.linefllwr_prop_const = {0, 0, 0, 0},
 			.setpoint = SETPOINT,
-			.rpm = velocidades_angulares[2]
+			.rpm = velocidades_angulares_motores[1]
 	};
 	master_task_motor_t motor_C_data =  {
 			.linefllwr_prop_const = {NEGATIVE_FEED_HIGH, NEGATIVE_FEED, POSITIVE_FEED, POSITIVE_FEED_HIGH},
 			.setpoint = SETPOINT,
-			.rpm = velocidades_angulares[1]
+			.rpm = velocidades_angulares_motores[2]
 	};
 	master_task_motor_t motor_D_data =  {
 			.linefllwr_prop_const = {0, 0, 0, 0},
 			.setpoint = SETPOINT,
-			.rpm = velocidades_angulares[3]
+			.rpm = velocidades_angulares_motores[3]
 	};
 
 	while(1)
@@ -316,6 +352,12 @@ void master_task(void *arg)
 				vTaskDelay(100);
 				gpio_set_level(GPIO_ENABLE_MOTORS, 1);
 
+				state = ST_MT_SEND_SETPOINTS;
+				break;
+			}
+
+			case ST_MT_SEND_SETPOINTS:
+			{
 				// send setpoints
 				xQueueSend(master_task_motor_A_rcv_queue, &motor_A_data, 0);
 				xQueueSend(master_task_motor_B_rcv_queue, &motor_B_data, 0);
@@ -328,20 +370,69 @@ void master_task(void *arg)
 
 			case ST_MT_GATHER_RPM:
 			{
-				// rcv feedback from motor tasks
+				// receive average rpm feedback from motor tasks
 				if(xQueueReceive(master_task_feedback, &feedback_rcv, 10) == pdTRUE)
 				{
 					for(int i=0; i<TASK_COUNT; i++)
 					{
+						// checks which task sent the feedback
 						if(strcmp(feedback_rcv.task_name, tasks_status[i].task_name)==0)
 						{
 							tasks_status[i].status = feedback_rcv.status;
+
+							// allow only one element per motor per round
+							if(rpm_queue[i].busy == 0)
+							{
+								rpm_queue_size++;
+								rpm_queue[i].busy = 1;
+								rpm_queue[i].rpm = feedback_rcv.average_rpm;
+							}
+							else
+							{
+								printf("<%s> tried to store RPM but busy\n", tasks_status[i].task_name);
+							}
 
 							printf("TASK <%s> UPDATED! status[%d] avg_rpm[%4.2f]\n", feedback_rcv.task_name, feedback_rcv.status, feedback_rcv.average_rpm);
 						}
 					}
 				}
 
+				// si llego al menos 1 mensaje de feedback desde cada task
+				if(rpm_queue_size >= TASK_COUNT)
+				{
+					rpm_queue_size = 0;
+
+					for(int i=0; i<TASK_COUNT; i++)
+					{
+						rpm_queue[i].busy=0;
+					}
+
+					state = ST_MT_CALC_RPM_COMP;
+				}
+
+				break;
+			}
+
+			case ST_MT_CALC_RPM_COMP:
+			{
+				calculo_matriz_cinematica_directa(rpm_queue, velocidades_lineales_reales);
+				printf("cmp vel lin / <%4.2f> <%4.2f> <%4.2f> org / <%4.2f> <%4.2f> <%4.2f> real\n\n",
+						velocidades_lineales[0], velocidades_lineales[1], velocidades_lineales[2],
+						velocidades_lineales_reales[0], velocidades_lineales_reales[1], velocidades_lineales_reales[2]);
+
+				calculo_error_velocidades_lineales(velocidades_lineales, velocidades_lineales_reales, delta_velocidad_lineal);
+				calculo_matriz_cinematica_inversa(delta_velocidad_lineal, velocidad_angular_compensacion);
+				for(int i=0; i<4; i++)
+				{
+					velocidad_angular_compensada[i] = velocidades_angulares_motores[i] - velocidad_angular_compensacion[i];
+				}
+
+				motor_A_data.rpm = velocidad_angular_compensada[0];
+				motor_B_data.rpm = velocidad_angular_compensada[1];
+				motor_C_data.rpm = velocidad_angular_compensada[2];
+				motor_D_data.rpm = velocidad_angular_compensada[3];
+
+				state = ST_MT_SEND_SETPOINTS;
 				break;
 			}
 
@@ -407,14 +498,7 @@ void motor_task_creator(task_params_t *param_motor, char *taskName, uint8_t assi
 	return;
 }
 
-/*
- * Timer group0 ISR handler
- *
- * Note:
- * We don't call the timer API here because they are not declared with IRAM_ATTR.
- * If we're okay with the timer irq not being serviced while SPI flash cache is disabled,
- * we can allocate this interrupt without the ESP_INTR_FLAG_IRAM flag and use the normal API.
- */
+// Timer ISR handler
 void IRAM_ATTR isr_timer(void *para)
 {
     timer_spinlock_take(TIMER_GROUP_0);
@@ -475,13 +559,6 @@ void IRAM_ATTR isr_timer(void *para)
     return;
 }
 
-/*
- * Initialize selected timer of the timer group 0
- *
- * timer_idx - the timer number to initialize
- * auto_reload - should the timer auto reload on alarm?
- * timer_interval_sec - the interval of alarm to set
- */
 void timer_initialize(int timer_idx, bool auto_reload, double timer_interval_sec)
 {
     /* Select and initialize basic parameters of the timer */
@@ -506,11 +583,6 @@ void timer_initialize(int timer_idx, bool auto_reload, double timer_interval_sec
     timer_start(TIMER_GROUP_0, timer_idx);
 }
 
-/* Initialize PCNT functions:
- *  - configure and initialize PCNT
- *  - set up the input filter
- *  - set up the counter events to watch
- */
 void pcnt_initialize(int unit, int signal_gpio_in)
 {
 	/* Prepare configuration for the PCNT unit */
@@ -636,46 +708,90 @@ void restart_pulse_counter(int pcnt)
 	return;
 }
 
-void calculo_matriz(float *vector_velocidad_lineal, float *vector_velocidad_angular)
+/*
+ * Obtiene las velocidades angulares de cada rueda segun los parametros (Xr, Yr, theta)
+ * */
+void calculo_matriz_cinematica_inversa(float *vector_velocidad_lineal, float *vector_velocidad_angular)
 {
-	float radio_rueda=5.08;
-    int radio_robot=10;
-    double vel_lineal_Z = vector_velocidad_lineal[2] * radio_robot;
+    float matriz_velocidad_lineal[4][3] = {0};
 
-    double angulo_base=45.0;
-    double angulo_incremento=90.0;
+    matriz_velocidad_lineal[0][0] = (-sqrt(2)/2); // -sen(pi/4) / WHEEL_RADIUS
+	matriz_velocidad_lineal[0][1] = (sqrt(2)/2); // cos(pi/4) / WHEEL_RADIUS
+	matriz_velocidad_lineal[0][2] = ROBOT_RADIUS;
+	matriz_velocidad_lineal[1][0] = (-sqrt(2)/2); // -sen(3/4 pi) / WHEEL_RADIUS
+	matriz_velocidad_lineal[1][1] = (-sqrt(2)/2); // cos(3/4 pi) / WHEEL_RADIUS
+	matriz_velocidad_lineal[1][2] = ROBOT_RADIUS;
+	matriz_velocidad_lineal[2][0] = (sqrt(2)/2); // 5/4 pi
+	matriz_velocidad_lineal[2][1] = (-sqrt(2)/2);
+	matriz_velocidad_lineal[2][2] = ROBOT_RADIUS;
+	matriz_velocidad_lineal[3][0] = (sqrt(2)/2); // 7/4 pi
+	matriz_velocidad_lineal[3][1] = (sqrt(2)/2);
+	matriz_velocidad_lineal[3][2] = ROBOT_RADIUS;
 
-    double vel_lineal_motores[4][3] = {0};
-    double vector_velocidades[3] = {vector_velocidad_lineal[0], vector_velocidad_lineal[1], 1};
-
-    vel_lineal_motores[0][0] = -1*sin(angulo_base*M_PI/RAD);
-    vel_lineal_motores[0][1] = cos(angulo_base*M_PI/RAD);
-    vel_lineal_motores[0][2] = vel_lineal_Z; 
-    vel_lineal_motores[1][0] = -1*sin((angulo_base+angulo_incremento)*M_PI/RAD);
-    vel_lineal_motores[1][1] = cos((angulo_base+angulo_incremento)*M_PI/RAD);
-    vel_lineal_motores[1][2] = vel_lineal_Z; 
-    vel_lineal_motores[2][0] = -1*sin((angulo_base+angulo_incremento*2)*M_PI/RAD);
-    vel_lineal_motores[2][1] = cos((angulo_base+angulo_incremento*2)*M_PI/RAD);
-    vel_lineal_motores[2][2] = vel_lineal_Z; 
-    vel_lineal_motores[3][0] = -1*sin((angulo_base+angulo_incremento*3)*M_PI/RAD);
-    vel_lineal_motores[3][1] = cos((angulo_base+angulo_incremento*3)*M_PI/RAD);
-    vel_lineal_motores[3][2] = vel_lineal_Z;
-
-    for (int i = 0; i < 4; i++)
+    for (int i=0; i<4; ++i)
     {
-        for (int j = 0; j < 3; j++)
+        vector_velocidad_angular[i] = 0;
+    }
+
+    for (int i=0; i<4; ++i)
+    {
+        for (int k=0; k<3; ++k)
         {
-            vector_velocidad_angular[i] += vel_lineal_motores[i][j] * vector_velocidades[j];   
+            vector_velocidad_angular[i] += matriz_velocidad_lineal[i][k] * vector_velocidad_lineal[k];
         }
-		vector_velocidad_angular[i] /= radio_rueda;
-		vector_velocidad_angular[i] *= 30/M_PI;
     }
 
-    for (int i = 0; i < 4; i++)
+    printf("rpm setting:");
+    for (int i=0; i<4; ++i)
     {
-        printf(" %f -", vector_velocidad_angular[i]);
+        printf(" %4.2f /", vector_velocidad_angular[i]);
     }
-    
+    printf("\n");
+
+    return;
+}
+
+/*
+ * Obtiene las velocidades lineales segun las velocidades angulares de las ruedas (w1, w2, w3, w4)
+ * */
+void calculo_matriz_cinematica_directa(rpm_queue_t *vector_velocidad_angular, float *vector_velocidad_lineal)
+{
+    float matriz_inversa[3][4] = {0};
+
+    matriz_inversa[0][0] = (-sqrt(2) * WHEEL_RADIUS) / 4;
+    matriz_inversa[0][1] = (-sqrt(2) * WHEEL_RADIUS) / 4;
+    matriz_inversa[0][2] = (sqrt(2) * WHEEL_RADIUS) / 4;
+    matriz_inversa[0][3] = (sqrt(2) * WHEEL_RADIUS) / 4;
+    matriz_inversa[1][0] = (sqrt(2) * WHEEL_RADIUS) / 4;
+    matriz_inversa[1][1] = (-sqrt(2) * WHEEL_RADIUS) / 4;
+    matriz_inversa[1][2] = (-sqrt(2) * WHEEL_RADIUS) / 4;
+    matriz_inversa[1][3] = (sqrt(2) * WHEEL_RADIUS) / 4;
+    matriz_inversa[2][0] = WHEEL_RADIUS/(4*ROBOT_RADIUS);
+    matriz_inversa[2][1] = WHEEL_RADIUS/(4*ROBOT_RADIUS);
+    matriz_inversa[2][2] = WHEEL_RADIUS/(4*ROBOT_RADIUS);
+    matriz_inversa[2][3] = WHEEL_RADIUS/(4*ROBOT_RADIUS);
+
+    for (int i=0; i<3; ++i)
+    {
+        vector_velocidad_lineal[i] = 0;
+    }
+
+    for (int i=0; i<3; ++i)
+	{
+    	for (int k=0; k<4; ++k)
+        {
+            vector_velocidad_lineal[i] += matriz_inversa[i][k] * vector_velocidad_angular[k].rpm;
+        }
+        vector_velocidad_lineal[i] /= WHEEL_RADIUS;
+	}
+
+    /*printf("vel lineal real:");
+    for (int i = 0; i < 3; i++)
+    {
+        printf(" %4.2f -", vector_velocidad_lineal[i]);
+    }
+    printf("\n");*/
+
 	return;
 }
 
@@ -684,10 +800,6 @@ float calculate_average(float *rpm_buffer, uint8_t size)
 	if(!size)
 	{
 		return 0;
-	}
-	else if(size == 1)
-	{
-		return rpm_buffer[0];
 	}
 	else
 	{
@@ -698,4 +810,12 @@ float calculate_average(float *rpm_buffer, uint8_t size)
 
 		return rpm_buffer[0]/size;
 	}
+}
+
+void calculo_error_velocidades_lineales(float *velocidad_lineal, float *velocidad_lineal_real, float *delta_velocidad_lineal)
+{
+    for(int i=0; i<3; i++)
+    {
+        delta_velocidad_lineal[i] = velocidad_lineal_real[i] - velocidad_lineal[i];
+    }
 }
