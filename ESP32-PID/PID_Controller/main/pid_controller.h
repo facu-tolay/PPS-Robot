@@ -105,9 +105,9 @@
 
 // MASTER TASK states defines
 #define ST_MT_INIT				0
-#define ST_MT_SEND_SETPOINTS	1
-#define ST_MT_GATHER_RPM		2
-#define ST_MT_CALC_RPM_COMP		3
+#define ST_MT_SEND_SETPOINTS	2
+#define ST_MT_GATHER_RPM		3
+#define ST_MT_CALC_RPM_COMP		4
 
 // Matriz defines
 #define RAD 180
