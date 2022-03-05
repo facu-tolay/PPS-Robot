@@ -38,7 +38,7 @@
 #define PCNT_INPUT_SIG_IO_D		27	// Pulse Input GPIO
 
 // LINEFOLLOWER defines
-#define LINEF_ANGULAR_COMP 		(float)3.5
+#define LINEF_ANGULAR_COMP 		(float)5.25
 #define LINEF_HYSTERESIS		0
 
 // SENSORES defines

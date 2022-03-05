@@ -5,12 +5,12 @@
 #define _Ki (float) 6.5		// 5
 #define _Kd (float) 0.09*/
 
-#define _Kp (float)	9.5
+#define _Kp (float)	11
 #define _Ki (float) 7.3
-#define _Kd (float) 0.4
+#define _Kd (float) 0.2
 #define _dt (float)TIMER_INTERVAL_RPM_MEASURE
 
-#define SETPOINT (float)10 // in [m]
+#define SETPOINT (float)30 // in [m]
 #define VEL_LINEAL_X (float)0.0
 #define VEL_LINEAL_Y (float)-0.25 //m/seg
 #define VEL_ANGULAR (float)0.0  //rpm
@@ -378,8 +378,6 @@ void master_task(void *arg)
 
  	while(1)
  	{
- 		//vTaskDelay(1 / portTICK_PERIOD_MS); // a veces es necesario meter un delay para dejar que otras tareas se ejecuten.
-
  		// receive line follower pulses
  		if(xQueueReceive(line_follower_master_rcv_queue, &line_follower_received, 10) == pdTRUE)
  		{
@@ -506,12 +504,28 @@ void master_task(void *arg)
 					{						
 						if(velocidades_lineales[2] < 0.0)
 						{
-							velocidades_lineales_reales[2] = velocidades_lineales_reales[2] + line_follower_count[i]*LINEF_ANGULAR_COMP;
+							//velocidades_lineales_reales[2] = velocidades_lineales_reales[2] + line_follower_count[i]*LINEF_ANGULAR_COMP;
+							if(i==0)
+							{
+								velocidades_lineales_reales[2] = velocidades_lineales_reales[2] + line_follower_count[i]*1.5*LINEF_ANGULAR_COMP;
+							}
+							else
+							{
+								velocidades_lineales_reales[2] = velocidades_lineales_reales[2] - line_follower_count[i]*1.5*LINEF_ANGULAR_COMP;
+							}
 			 				printf("LINEF w<0 / new value %f\n", velocidades_lineales_reales[2]);
 						}
 						else if(velocidades_lineales[2] > 0.0)
 						{
-							velocidades_lineales_reales[2] = velocidades_lineales_reales[2] - line_follower_count[i]*LINEF_ANGULAR_COMP;
+							//velocidades_lineales_reales[2] = velocidades_lineales_reales[2] - line_follower_count[i]*LINEF_ANGULAR_COMP;
+							if(i==0)
+							{
+								velocidades_lineales_reales[2] = velocidades_lineales_reales[2] + line_follower_count[i]*1.5*LINEF_ANGULAR_COMP;
+							}
+							else
+							{
+								velocidades_lineales_reales[2] = velocidades_lineales_reales[2] - line_follower_count[i]*1.5*LINEF_ANGULAR_COMP;
+							}
 			 				printf("LINEF w>0 / new value %f\n", velocidades_lineales_reales[2]);
 						}
 						else
