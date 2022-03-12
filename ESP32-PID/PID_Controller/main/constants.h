@@ -15,13 +15,6 @@
 #define MIN_PWM_VALUE	1300
 #define MAX_PWM_VALUE	3500
 
-#define CANT_LEDC_CHANNELS	8
-
-#define POSITIVE_FEED		((float)0.75)
-#define POSITIVE_FEED_HIGH	((float)2.75)
-#define NEGATIVE_FEED		((float)-0.75)
-#define NEGATIVE_FEED_HIGH	((float)-2.75)
-
 // TIMER defines
 #define TIMER_DIVIDER				16  //  Hardware timer clock divider
 #define TIMER_SCALE					(TIMER_BASE_CLK / TIMER_DIVIDER)  // convert counter value to seconds
@@ -59,89 +52,7 @@
 #define RPM_COMPENSATION_THRESHOLD	(float)	35.0
 #define RPM_COMPENSATION			(float)	25.0
 
-// MOTOR defines
-#define MOT_1_A_GPIO	18
-#define MOT_1_B_GPIO	5
-#define MOT_2_A_GPIO	19
-#define MOT_2_B_GPIO	21
-#define MOT_3_A_GPIO	32
-#define MOT_3_B_GPIO	33
-#define MOT_4_A_GPIO	25
-#define MOT_4_B_GPIO	26
-
-#define MOT_A_SEL		0
-#define MOT_B_SEL		1
-#define MOT_C_SEL		2
-#define MOT_D_SEL		3
-
 #define DIRECTION_CW	1
 #define DIRECTION_CCW	0
-
-ledc_channel_config_t ledc_channel[CANT_LEDC_CHANNELS] = {
-	{
-		.channel    = LEDC_CHANNEL_0,
-		.duty       = 0,
-		.gpio_num   = MOT_1_A_GPIO,
-		.speed_mode = LEDC_HIGH_SPEED_MODE,
-		.hpoint     = 0,
-		.timer_sel  = LEDC_TIMER_0
-	},
-	{
-		.channel    = LEDC_CHANNEL_1,
-		.duty       = 0,
-		.gpio_num   = MOT_1_B_GPIO,
-		.speed_mode = LEDC_HIGH_SPEED_MODE,
-		.hpoint     = 0,
-		.timer_sel  = LEDC_TIMER_0
-	},
-	{
-		.channel    = LEDC_CHANNEL_2,
-		.duty       = 0,
-		.gpio_num   = MOT_2_A_GPIO,
-		.speed_mode = LEDC_HIGH_SPEED_MODE,
-		.hpoint     = 0,
-		.timer_sel  = LEDC_TIMER_0
-	},
-	{
-		.channel    = LEDC_CHANNEL_3,
-		.duty       = 0,
-		.gpio_num   = MOT_2_B_GPIO,
-		.speed_mode = LEDC_HIGH_SPEED_MODE,
-		.hpoint     = 0,
-		.timer_sel  = LEDC_TIMER_0
-	},
-	{
-		.channel    = LEDC_CHANNEL_4,
-		.duty       = 0,
-		.gpio_num   = MOT_3_A_GPIO,
-		.speed_mode = LEDC_LOW_SPEED_MODE,
-		.hpoint     = 0,
-		.timer_sel  = LEDC_TIMER_1
-	},
-	{
-		.channel    = LEDC_CHANNEL_5,
-		.duty       = 0,
-		.gpio_num   = MOT_3_B_GPIO,
-		.speed_mode = LEDC_LOW_SPEED_MODE,
-		.hpoint     = 0,
-		.timer_sel  = LEDC_TIMER_1
-	},
-	{
-		.channel    = LEDC_CHANNEL_6,
-		.duty       = 0,
-		.gpio_num   = MOT_4_A_GPIO,
-		.speed_mode = LEDC_LOW_SPEED_MODE,
-		.hpoint     = 0,
-		.timer_sel  = LEDC_TIMER_1
-	},
-	{
-		.channel    = LEDC_CHANNEL_7,
-		.duty       = 0,
-		.gpio_num   = MOT_4_B_GPIO,
-		.speed_mode = LEDC_LOW_SPEED_MODE,
-		.hpoint     = 0,
-		.timer_sel  = LEDC_TIMER_1
-	},
-};
 
 #endif
