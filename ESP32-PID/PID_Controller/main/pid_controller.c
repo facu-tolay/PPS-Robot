@@ -1,6 +1,5 @@
 #include "pid_controller.h"
 
-
 /*#define _Kp (float)	10
 #define _Ki (float) 6.5		// 5
 #define _Kd (float) 0.09*/
@@ -71,7 +70,6 @@ void PID_Compute(PID_params_t *params_in)
 		if(rpm_destino > 0)
 		{
 			output += MIN_PWM_VALUE;
-
 			if(output >= MAX_PWM_VALUE)
 			{
 				output = MAX_PWM_VALUE;
@@ -84,7 +82,6 @@ void PID_Compute(PID_params_t *params_in)
 		else if(rpm_destino < 0)
 		{
 			output -= MIN_PWM_VALUE;
-
 			if(output <= -MAX_PWM_VALUE)
 			{
 				output = -MAX_PWM_VALUE;
