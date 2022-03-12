@@ -1,15 +1,5 @@
 #include "pid_controller.h"
 
-
-/*#define _Kp (float)	10
-#define _Ki (float) 6.5		// 5
-#define _Kd (float) 0.09*/
-
-#define _Kp (float)	11
-#define _Ki (float) 7.3
-#define _Kd (float) 0.2
-#define _dt (float)TIMER_INTERVAL_RPM_MEASURE
-
 #define SETPOINT (float)30 // in [m]
 #define VEL_LINEAL_X (float)0.0
 #define VEL_LINEAL_Y (float)-0.25 //m/seg
@@ -37,74 +27,6 @@ task_params_t task_params_A;
 task_params_t task_params_B;
 task_params_t task_params_C;
 task_params_t task_params_D;
-
-void PID_Compute(PID_params_t *params_in)
-{
-	float _integral = params_in -> _integral;
-	float _pre_error = params_in -> _pre_error;
-	float rpm_destino = params_in -> rpm_destino;
-	float rpm_actual = params_in -> rpm_actual;
-	signed int output = params_in -> output;
-
-	// Calculate error
-	float error = rpm_destino - rpm_actual;
-
-	if((error > 0 && error < 1.5) || (error < 0 && error > -1.5))
-	{
-		//_pre_error = 0;
-		//_integral = 0;
-	}
-	else
-	{
-		float Pout = _Kp * error; // Proportional term
-
-		_integral += error * _dt; // Integral term
-		float Iout = _Ki * _integral;
-
-		float derivative = (error - _pre_error) / _dt; // Derivative term
-		float Dout = _Kd * derivative;
-
-		// Calculate total output
-		output = Pout + Iout + Dout;
-
-		// Restrict to max/min
-		if(rpm_destino > 0)
-		{
-			output += MIN_PWM_VALUE;
-
-			if(output >= MAX_PWM_VALUE)
-			{
-				output = MAX_PWM_VALUE;
-			}
-			else if(output <= MIN_PWM_VALUE)
-			{
-				output = MIN_PWM_VALUE;
-			}
-		}
-		else if(rpm_destino < 0)
-		{
-			output -= MIN_PWM_VALUE;
-
-			if(output <= -MAX_PWM_VALUE)
-			{
-				output = -MAX_PWM_VALUE;
-			}
-			else if(output >= -MIN_PWM_VALUE)
-			{
-				output = -MIN_PWM_VALUE;
-			}
-		}
-
-		//printf("err=%4.2f/ pre=%4.2f/ Pout=%4.2f/ Iout=%4.2f/ Dout=%4.2f/ OUT=%d\n", error, _pre_error, Pout, Iout, Dout, output);
-
-		// Save error to previous error
-		_pre_error = error;
-	}
-
-	params_in -> _integral = _integral;
-	params_in -> _pre_error = _pre_error;
-	params_in -> output = output;
-}
 
 void task_motor(void *arg)
 {
@@ -317,6 +239,7 @@ void master_task(void *arg)
  	};
 
  	uint8_t rpm_queue_size = 0;
+ 	float rpm_average_array[MOTOR_TASK_COUNT] = {0};
  	rpm_queue_t rpm_queue[MOTOR_TASK_COUNT] = {
  			{
  				.rpm = 0,
@@ -347,31 +270,22 @@ void master_task(void *arg)
  	velocidades_lineales[2] = VEL_ANGULAR;
  	calculo_matriz_cinematica_inversa(velocidades_lineales, velocidades_angulares);
 
- 	/*for(int i=0; i<MOTOR_TASK_COUNT; i++)
- 	{
- 		if(velocidades_angulares[i] < 20)
- 			velocidades_angulares[i] = 20.0;
- 	}*/
 
 	// VER SI ESTO SE PUEDE METER EN LA FSM
 
  	master_task_motor_t motor_A_data =  {
- 			.linefllwr_prop_const = {NEGATIVE_FEED_HIGH, POSITIVE_FEED, POSITIVE_FEED_HIGH},
  			.setpoint = SETPOINT,
  			.rpm = velocidades_angulares[0]
  	};
  	master_task_motor_t motor_B_data =  {
- 			.linefllwr_prop_const = {0, 0, 0},
  			.setpoint = SETPOINT,
 			.rpm = velocidades_angulares[1]
  	};
  	master_task_motor_t motor_C_data =  {
- 			.linefllwr_prop_const = {NEGATIVE_FEED_HIGH, NEGATIVE_FEED, POSITIVE_FEED_HIGH},
  			.setpoint = SETPOINT,
 			.rpm = velocidades_angulares[2]
  	};
  	master_task_motor_t motor_D_data =  {
- 			.linefllwr_prop_const = {0, 0, 0},
  			.setpoint = SETPOINT,
  			.rpm = velocidades_angulares[3]
  	};
@@ -474,6 +388,7 @@ void master_task(void *arg)
 									for(int i=0; i<MOTOR_TASK_COUNT; i++)
 									{
 										rpm_queue[i].busy=0;
+										rpm_average_array[i] = rpm_queue[i].rpm;
 									}
 
 									state = ST_MT_CALC_RPM_COMP;
@@ -496,7 +411,7 @@ void master_task(void *arg)
  				}
 
 				// Obtencion de las velocidades lineales reales a partir de las RPM
- 				calculo_matriz_cinematica_directa(rpm_queue, velocidades_lineales_reales);
+ 				calculo_matriz_cinematica_directa(rpm_average_array, velocidades_lineales_reales);
 
 				for(int i=0; i<HALL_SENSOR_COUNT; i++)
 	 			{
@@ -504,7 +419,6 @@ void master_task(void *arg)
 					{						
 						if(velocidades_lineales[2] < 0.0)
 						{
-							//velocidades_lineales_reales[2] = velocidades_lineales_reales[2] + line_follower_count[i]*LINEF_ANGULAR_COMP;
 							if(i==0)
 							{
 								velocidades_lineales_reales[2] = velocidades_lineales_reales[2] + line_follower_count[i]*1.5*LINEF_ANGULAR_COMP;
@@ -517,7 +431,6 @@ void master_task(void *arg)
 						}
 						else if(velocidades_lineales[2] > 0.0)
 						{
-							//velocidades_lineales_reales[2] = velocidades_lineales_reales[2] - line_follower_count[i]*LINEF_ANGULAR_COMP;
 							if(i==0)
 							{
 								velocidades_lineales_reales[2] = velocidades_lineales_reales[2] + line_follower_count[i]*1.5*LINEF_ANGULAR_COMP;
@@ -615,9 +528,9 @@ void app_main(void)
 
     line_follower_master_rcv_queue = xQueueCreate(10, sizeof(line_follower_event_t));
 
-    timer_initialize(TIMER_1, TIMER_AUTORELOAD_EN, TIMER_INTERVAL_RPM_MEASURE);
+    timer_initialize(TIMER_1, TIMER_AUTORELOAD_EN, TIMER_INTERVAL_RPM_MEASURE, isr_timer_handler);
 
-    pwm_initialize();
+    motorInitialize();
     gpio_initialize();
 
     xTaskCreate(master_task, "master_task", 2048, NULL, 5, NULL);
@@ -636,7 +549,7 @@ void motor_task_creator(task_params_t *param_motor, char *taskName, uint8_t assi
 }
 
 // Timer ISR handler
-void IRAM_ATTR isr_timer(void *para)
+void IRAM_ATTR isr_timer_handler(void *para)
 {
     timer_spinlock_take(TIMER_GROUP_0);
     int timer_idx = (int) para;
@@ -689,285 +602,3 @@ void IRAM_ATTR isr_timer(void *para)
     return;
 }
 
-void timer_initialize(int timer_idx, bool auto_reload, double timer_interval_sec)
-{
-    /* Select and initialize basic parameters of the timer */
-    timer_config_t config = {
-        .divider = TIMER_DIVIDER,
-        .counter_dir = TIMER_COUNT_UP,
-        .counter_en = TIMER_PAUSE,
-        .alarm_en = TIMER_ALARM_EN,
-        .auto_reload = auto_reload,
-    };
-    timer_init(TIMER_GROUP_0, timer_idx, &config);
-
-    /* Timer's counter will initially start from value below.
-       Also, if auto_reload is set, this value will be automatically reload on alarm */
-    timer_set_counter_value(TIMER_GROUP_0, timer_idx, 0x00000000ULL);
-
-    /* Configure the alarm value and the interrupt on alarm. */
-    timer_set_alarm_value(TIMER_GROUP_0, timer_idx, timer_interval_sec * TIMER_SCALE);
-    timer_enable_intr(TIMER_GROUP_0, timer_idx);
-    timer_isr_register(TIMER_GROUP_0, timer_idx, isr_timer, (void *) timer_idx, ESP_INTR_FLAG_IRAM, NULL);
-
-    timer_start(TIMER_GROUP_0, timer_idx);
-}
-
-void pcnt_initialize(int unit, int signal_gpio_in)
-{
-	/* Prepare configuration for the PCNT unit */
-	pcnt_config_t pcnt_config = {
-		// Set PCNT input signal and control GPIOs
-		.pulse_gpio_num = signal_gpio_in,
-		.ctrl_gpio_num = -1, // Control pin not utilized
-		.channel = PCNT_CHANNEL_0,
-		.unit = unit,
-		// What to do on the positive / negative edge of pulse input?
-		.pos_mode = PCNT_COUNT_INC,   // Count up on the positive edge
-		.neg_mode = PCNT_COUNT_DIS,   // Inhibit counter(counter value will not change in this condition)
-		// What to do when control input is low or high?
-		.lctrl_mode = PCNT_MODE_KEEP, // Reverse counting direction if low
-		.hctrl_mode = PCNT_MODE_KEEP, // Keep the primary counter mode if high
-	};
-	/* Initialize PCNT unit */
-	pcnt_unit_config(&pcnt_config);
-
-	/* Configure and enable the input filter */
-	pcnt_set_filter_value(unit, 1000);
-	pcnt_filter_enable(unit);
-
-	/* Initialize PCNT's counter */
-	pcnt_counter_pause(unit);
-	pcnt_counter_clear(unit);
-
-	/* Everything is set up, now go to counting */
-	pcnt_counter_resume(unit);
-}
-
-void pwm_initialize()
-{
-	int ch;
-
-	ledc_timer_config_t ledc_timer = {
-		.duty_resolution = LEDC_TIMER_13_BIT,	// resolution of PWM duty
-		.freq_hz = 6000,						// frequency of PWM signal
-		.speed_mode = LEDC_LOW_SPEED_MODE,		// timer mode
-		.timer_num = LEDC_TIMER_1,				// timer index
-		.clk_cfg = LEDC_AUTO_CLK,				// Auto select the source clock
-	};
-
-	ledc_timer_config(&ledc_timer); // Set configuration of timer0 for high speed channels
-
-	ledc_timer.speed_mode = LEDC_HIGH_SPEED_MODE; // Prepare and set configuration of timer1 for low speed channels
-	ledc_timer.timer_num = LEDC_TIMER_0;
-	ledc_timer_config(&ledc_timer);
-
-	// Set LED Controller with previously prepared configuration
-	for (ch = 0; ch < CANT_LEDC_CHANNELS; ch++)
-	{
-		ledc_channel_config(&ledc_channel[ch]);
-	}
-
-	// Initialize fade service.
-	ledc_fade_func_install(0);
-}
-
-void gpio_initialize()
-{
-	gpio_set_direction(GPIO_READY_LED, GPIO_MODE_OUTPUT);
-	gpio_set_direction(GPIO_ENABLE_MOTORS, GPIO_MODE_OUTPUT);
-	gpio_set_level(GPIO_ENABLE_MOTORS, 0);
-}
-
-void motorSetSpeed(uint8_t selection, signed int speed)
-{
-	int speed_mot_a=0;
-	int speed_mot_b=0;
-	uint8_t index=0;
-
-	switch(selection)
-	{
-		case MOT_A_SEL:
-			break;
-		case MOT_B_SEL:
-			index = 2;
-			break;
-
-		case MOT_C_SEL:
-			index = 4;
-			break;
-
-		case MOT_D_SEL:
-			index = 6;
-			break;
-
-		default:
-			index = 0;
-			break;
-	}
-
-	if(speed>0)
-	{
-		speed_mot_a = speed;
-	}
-	else if(speed<0)
-	{
-		speed_mot_b = -speed;
-	}
-
-	ledc_set_duty(ledc_channel[index].speed_mode, ledc_channel[index].channel, speed_mot_a);
-	ledc_update_duty(ledc_channel[index].speed_mode, ledc_channel[index].channel);
-	index++;
-	ledc_set_duty(ledc_channel[index].speed_mode, ledc_channel[index].channel, speed_mot_b);
-	ledc_update_duty(ledc_channel[index].speed_mode, ledc_channel[index].channel);
-}
-
-void motorStop(uint8_t selection)
-{
-	motorSetSpeed(selection, 0);
-}
-
-void restart_pulse_counter(int pcnt)
-{
-	pcnt_counter_pause(pcnt);
-	pcnt_counter_clear(pcnt);
-	pcnt_counter_resume(pcnt);
-	return;
-}
-
-/*
- * Obtiene las velocidades angulares de cada rueda segun los parametros (Xr, Yr, theta)
- * */
-void calculo_matriz_cinematica_inversa(float *vector_velocidad_lineal, float *vector_velocidad_angular)
-{
-    float matriz_velocidad_lineal[4][3] = {0};
-
-    /*matriz_velocidad_lineal[0][0] = (-sqrt(2)/2)*(30/(WHEEL_RADIUS*M_PI));
-	matriz_velocidad_lineal[0][1] = (sqrt(2)/2)*(30/(WHEEL_RADIUS*M_PI));
-	matriz_velocidad_lineal[0][2] = ROBOT_RADIUS/WHEEL_RADIUS;
-	matriz_velocidad_lineal[1][0] = (-sqrt(2)/2)*(30/(WHEEL_RADIUS*M_PI));
-	matriz_velocidad_lineal[1][1] = (-sqrt(2)/2)*(30/(WHEEL_RADIUS*M_PI));
-	matriz_velocidad_lineal[1][2] = ROBOT_RADIUS/WHEEL_RADIUS;
-	matriz_velocidad_lineal[2][0] = (sqrt(2)/2)*(30/(WHEEL_RADIUS*M_PI));
-	matriz_velocidad_lineal[2][1] = (-sqrt(2)/2)*(30/(WHEEL_RADIUS*M_PI));
-	matriz_velocidad_lineal[2][2] = ROBOT_RADIUS/WHEEL_RADIUS;
-	matriz_velocidad_lineal[3][0] = (sqrt(2)/2)*(30/(WHEEL_RADIUS*M_PI));
-	matriz_velocidad_lineal[3][1] = (sqrt(2)/2)*(30/(WHEEL_RADIUS*M_PI)); //rpm/m
-	matriz_velocidad_lineal[3][2] = ROBOT_RADIUS/WHEEL_RADIUS;*/
-
-    matriz_velocidad_lineal[0][0] = -265.8414; // (-sqrt(2)/2)*(30/(WHEEL_RADIUS*M_PI));
-	matriz_velocidad_lineal[0][1] = 265.8414; // (sqrt(2)/2)*(30/(WHEEL_RADIUS*M_PI));
-	matriz_velocidad_lineal[0][2] = 5.51181; // ROBOT_RADIUS/WHEEL_RADIUS;
-	matriz_velocidad_lineal[1][0] = -265.8414; // (-sqrt(2)/2)*(30/(WHEEL_RADIUS*M_PI));
-	matriz_velocidad_lineal[1][1] = -265.8414; // (-sqrt(2)/2)*(30/(WHEEL_RADIUS*M_PI));
-	matriz_velocidad_lineal[1][2] = 5.51181; // ROBOT_RADIUS/WHEEL_RADIUS;
-	matriz_velocidad_lineal[2][0] = 265.8414; // (sqrt(2)/2)*(30/(WHEEL_RADIUS*M_PI));
-	matriz_velocidad_lineal[2][1] = -265.8414; // (-sqrt(2)/2)*(30/(WHEEL_RADIUS*M_PI));
-	matriz_velocidad_lineal[2][2] = 5.51181; // ROBOT_RADIUS/WHEEL_RADIUS;
-	matriz_velocidad_lineal[3][0] = 265.8414; // (sqrt(2)/2)*(30/(WHEEL_RADIUS*M_PI));
-	matriz_velocidad_lineal[3][1] = 265.8414; // (sqrt(2)/2)*(30/(WHEEL_RADIUS*M_PI)); //rpm/m
-	matriz_velocidad_lineal[3][2] = 5.51181; // ROBOT_RADIUS/WHEEL_RADIUS;
-
-    for (int i=0; i<4; ++i)
-    {
-        vector_velocidad_angular[i] = 0;
-    }
- 
-    for (int i=0; i<4; ++i)
-    {
-        for (int k=0; k<3; ++k)
-        {
-            vector_velocidad_angular[i] += matriz_velocidad_lineal[i][k] * vector_velocidad_lineal[k]; //rpm
-        }
-    }
-
-    printf("rpm calc:");
-    for (int i=0; i<4; ++i)
-    {
-        printf(" %4.2f /", vector_velocidad_angular[i]);
-    }
-    printf("\n");
-
-    return;
-}
-
-/*
- * Obtiene las velocidades lineales segun las velocidades angulares de las ruedas (w1, w2, w3, w4)
- * */
-void calculo_matriz_cinematica_directa(rpm_queue_t *vector_velocidad_angular, float *vector_velocidad_lineal)
-{
-    float matriz_inversa[3][4] = {0};
-
-    /*matriz_inversa[0][0] = (-sqrt(2)/2)*(((WHEEL_RADIUS/2)*M_PI)/30);
-    matriz_inversa[0][1] = (-sqrt(2)/2)*(((WHEEL_RADIUS/2)*M_PI)/30);
-    matriz_inversa[0][2] = (sqrt(2)/2)*(((WHEEL_RADIUS/2)*M_PI)/30);
-    matriz_inversa[0][3] = (sqrt(2)/2)*(((WHEEL_RADIUS/2)*M_PI)/30);
-    matriz_inversa[1][0] = (sqrt(2)/2)*(((WHEEL_RADIUS/2)*M_PI)/30);
-    matriz_inversa[1][1] = (-sqrt(2)/2)*(((WHEEL_RADIUS/2)*M_PI)/30);
-    matriz_inversa[1][2] = (-sqrt(2)/2)*(((WHEEL_RADIUS/2)*M_PI)/30);
-    matriz_inversa[1][3] = (sqrt(2)/2)*(((WHEEL_RADIUS/2)*M_PI)/30);
-    matriz_inversa[2][0] = (1/(2*ROBOT_RADIUS))*(WHEEL_RADIUS/2);
-    matriz_inversa[2][1] = (1/(2*ROBOT_RADIUS))*(WHEEL_RADIUS/2);
-    matriz_inversa[2][2] = (1/(2*ROBOT_RADIUS))*(WHEEL_RADIUS/2);
-    matriz_inversa[2][3] = (1/(2*ROBOT_RADIUS))*(WHEEL_RADIUS/2);*/
-
-    matriz_inversa[0][0] = -9.4041E-4; // (-sqrt(2)/2)*(((WHEEL_RADIUS/2)*M_PI)/30);
-	matriz_inversa[0][1] = -9.4041E-4; // (-sqrt(2)/2)*(((WHEEL_RADIUS/2)*M_PI)/30);
-	matriz_inversa[0][2] = 9.4041E-4; // (sqrt(2)/2)*(((WHEEL_RADIUS/2)*M_PI)/30);
-	matriz_inversa[0][3] = 9.4041E-4; // (sqrt(2)/2)*(((WHEEL_RADIUS/2)*M_PI)/30);
-	matriz_inversa[1][0] = 9.4041E-4; // (sqrt(2)/2)*(((WHEEL_RADIUS/2)*M_PI)/30);
-	matriz_inversa[1][1] = -9.4041E-4; // (-sqrt(2)/2)*(((WHEEL_RADIUS/2)*M_PI)/30);
-	matriz_inversa[1][2] = -9.4041E-4; // (-sqrt(2)/2)*(((WHEEL_RADIUS/2)*M_PI)/30);
-	matriz_inversa[1][3] = 9.4041E-4; // (sqrt(2)/2)*(((WHEEL_RADIUS/2)*M_PI)/30);
-	matriz_inversa[2][0] = 0.09071; // (1/(2*ROBOT_RADIUS))*(WHEEL_RADIUS/2);
-	matriz_inversa[2][1] = 0.09071; // (1/(2*ROBOT_RADIUS))*(WHEEL_RADIUS/2);
-	matriz_inversa[2][2] = 0.09071; // (1/(2*ROBOT_RADIUS))*(WHEEL_RADIUS/2);
-	matriz_inversa[2][3] = 0.09071; // (1/(2*ROBOT_RADIUS))*(WHEEL_RADIUS/2);
-
-    for (int i=0; i<3; ++i)
-    {
-        vector_velocidad_lineal[i] = 0;
-    }
-
-    for (int i=0; i<3; ++i)
-	{
-    	for (int k=0; k<4; ++k)
-        {
-            vector_velocidad_lineal[i] += matriz_inversa[i][k] * vector_velocidad_angular[k].rpm;
-        }
-	}
-
-    printf("vel lineal:");
-    for (int i = 0; i < 3; i++)
-    {
-        printf(" %4.2f /", vector_velocidad_lineal[i]);
-    }
-    printf("\n");
-
-	return;
-}
-
-float calculate_average(float *rpm_buffer, uint8_t size)
-{
-	if(!size)
-	{
-		return 0;
-	}
-	else
-	{
-		for(int i=1; i<size; i++)
-		{
-			rpm_buffer[0] += rpm_buffer[i];
-		}
-
-		return rpm_buffer[0]/size;
-	}
-}
-
-void calculo_error_velocidades_lineales(float *velocidad_lineal, float *velocidad_lineal_real, float *delta_velocidad_lineal)
-{
-    for(int i=0; i<3; i++)
-    {
-        delta_velocidad_lineal[i] = velocidad_lineal_real[i] - velocidad_lineal[i];
-    }
-}

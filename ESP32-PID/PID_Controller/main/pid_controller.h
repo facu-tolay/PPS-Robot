@@ -10,19 +10,15 @@
 
 #include <stdio.h>
 #include <string.h>
-#include <math.h>
-#include "esp_types.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
 #include "freertos/FreeRTOSConfig.h"
 #include "freertos/queue.h"
-#include "driver/periph_ctrl.h"
-#include "driver/pcnt.h"
-#include "driver/timer.h"
-#include "driver/ledc.h"
-#include "driver/gpio.h"
-#include "esp_err.h"
 #include "constants.h"
+#include "../components/MotorControl/MotorControl.h"
+#include "../components/Kinematics/Kinematics.h"
+#include "../components/PID/PID.h"
+#include "../components/Utils/Utils.h"
 
 #define INCLUDE_vTaskDelay 1
 
@@ -73,7 +69,6 @@ typedef struct {
 typedef struct {
 	float setpoint;
 	float rpm;
-	float linefllwr_prop_const[HALL_SENSOR_COUNT];
 } master_task_motor_t;
 
 /*
@@ -98,16 +93,6 @@ typedef struct {
 	uint8_t busy;
 } rpm_queue_t;
 
-/*
- * For PID computing
- * */
-typedef struct {
-	float rpm_actual;
-	float rpm_destino;
-	float _integral;
-	float _pre_error;
-	signed int output;
-} PID_params_t;
 
 /*
  * For storing motor tasks status
@@ -121,18 +106,6 @@ typedef struct {
 // function prototypes
 void main_task(void *arg);
 void motor_task_creator(task_params_t *param_motor, char *taskName, uint8_t assignedMotor, xQueueHandle *masterReceiveQueue, xQueueHandle *encoderLineFllwrReceiveQueue);
-void PID_Compute(PID_params_t *params_in);
-float calculate_average(float *rpm_buffer, uint8_t size);
-void calculo_matriz_cinematica_inversa(float *vector_velocidad_lineal, float *vector_velocidad_angular);
-void calculo_matriz_cinematica_directa(rpm_queue_t *vector_velocidad_angular, float *vector_velocidad_lineal);
-void calculo_error_velocidades_lineales(float *velocidad_lineal, float *velocidad_lineal_real, float *delta_velocidad_lineal);
+void IRAM_ATTR isr_timer_handler(void *para);
 
-void pwm_initialize();
-void pcnt_initialize(int unit, int signal_gpio_in);
-void timer_initialize(int timer_idx, bool auto_reload, double timer_interval_sec);
-void gpio_initialize();
-
-void restart_pulse_counter(int pcnt);
-void motorSetSpeed(uint8_t selection, signed int pwm_value);
-void motorStop(uint8_t selection);
 #endif /* MAIN_PID_CONTROLLER_H_ */
