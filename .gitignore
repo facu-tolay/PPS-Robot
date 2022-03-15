@@ -1,8 +1,5 @@
 *.pdf
-build/
-*.cproject
-*.project
-*.projbuild
+build
 LICENSE
 sdkconfig
-.vscode/
+.vscode
