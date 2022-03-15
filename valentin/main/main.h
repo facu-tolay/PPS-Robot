@@ -1,6 +1,4 @@
 /*
- * pid_controller.h
- *
  *  Created on: 30 jun. 2021
  *      Author: Administrador
  */
