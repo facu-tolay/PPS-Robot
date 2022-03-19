@@ -6,6 +6,7 @@
 #ifndef MAIN_PID_CONTROLLER_H_
 #define MAIN_PID_CONTROLLER_H_
 
+#include <time.h>
 #include <stdio.h>
 #include <string.h>
 #include "freertos/FreeRTOS.h"
@@ -13,10 +14,12 @@
 #include "freertos/FreeRTOSConfig.h"
 #include "freertos/queue.h"
 #include "constants.h"
-#include "../components/MotorControl/MotorControl.h"
-#include "../components/Kinematics/Kinematics.h"
-#include "../components/PID/PID.h"
-#include "../components/Utils/Utils.h"
+#include "../components/motor_control/motor_control.h"
+#include "../components/kinematics/kinematics.h"
+#include "../components/pid/pid.h"
+#include "../components/utils/utils.h"
+#include "../components/mqtt_cmp/client_mqtt.h"
+#include "../components/wifi/wifi.h"
 
 #define INCLUDE_vTaskDelay 1
 
@@ -105,5 +108,6 @@ typedef struct {
 void main_task(void *arg);
 void motor_task_creator(task_params_t *param_motor, char *taskName, uint8_t assignedMotor, xQueueHandle *masterReceiveQueue, xQueueHandle *encoderLineFllwrReceiveQueue);
 void IRAM_ATTR isr_timer_handler(void *para);
+void timestamp_log(char *strtime_buffer);
 
 #endif /* MAIN_PID_CONTROLLER_H_ */

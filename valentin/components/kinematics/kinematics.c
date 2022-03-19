@@ -5,7 +5,7 @@
  *      Author: Administrador
  */
 
-#include "Kinematics.h"
+#include "kinematics.h"
 
 /*
  * Obtiene las velocidades angulares de cada rueda segun los parametros (Xr, Yr, theta)
@@ -53,12 +53,12 @@ void calculo_matriz_cinematica_inversa(float *vector_velocidad_lineal, float *ve
         }
     }
 
-    printf("rpm calc:");
-    for (int i=0; i<4; ++i)
-    {
-        printf(" %4.2f /", vector_velocidad_angular[i]);
-    }
-    printf("\n");
+    // printf("rpm calc:");
+    // for (int i=0; i<4; ++i)
+    // {
+    //     printf(" %4.2f /", vector_velocidad_angular[i]);
+    // }
+    // printf("\n");
 
     return;
 }
@@ -109,12 +109,12 @@ void calculo_matriz_cinematica_directa(float *vector_velocidad_angular, float *v
         }
 	}
 
-    printf("vel lineal:");
-    for (int i = 0; i < 3; i++)
-    {
-        printf(" %4.2f /", vector_velocidad_lineal[i]);
-    }
-    printf("\n");
+    // printf("vel lineal:");
+    // for (int i = 0; i < 3; i++)
+    // {
+    //     printf(" %4.2f /", vector_velocidad_lineal[i]);
+    // }
+    // printf("\n");
 
 	return;
 }

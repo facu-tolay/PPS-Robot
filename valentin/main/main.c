@@ -28,6 +28,9 @@ task_params_t task_params_B;
 task_params_t task_params_C;
 task_params_t task_params_D;
 
+//Identificador de cliente mqtt
+esp_mqtt_client_handle_t mqtt_client;
+
 void task_motor(void *arg)
 {
 	task_params_t *task_params = (task_params_t *) arg;
@@ -66,6 +69,9 @@ void task_motor(void *arg)
  	int16_t count_sum = 0;
  	uint16_t measure_count = 0;
 
+	// //LOGS
+	char log_buffer[70];
+	char time_buffer[15];
      while (1)
      {
      	// receive from interrupt (encoder, line follower)
@@ -186,15 +192,23 @@ void task_motor(void *arg)
 	 			{
 	 				master_feedback.status = TASK_STATUS_IDLE;
 					xQueueSend(master_task_feedback, &master_feedback, 0);
-
-					printf("<%s> IDLE FROM MASTER!\n", task_params->task_name);
+					memset(log_buffer, '0', strlen(log_buffer));
+					memset(time_buffer, '0', strlen(time_buffer));
+					timestamp_log(time_buffer);
+					sprintf(log_buffer, "%s <%s> IDLE FROM MASTER!", time_buffer, task_params->task_name);
+					send_log(mqtt_client, log_buffer);
+					// printf("<%s> IDLE FROM MASTER!\n", task_params->task_name);
 	 			}
 	 			else
 	 			{
 	 				master_feedback.status = TASK_STATUS_WORKING;
 	 				xQueueSend(master_task_feedback, &master_feedback, 0);
-
-	 				printf("<%s> SETPOINT UPDATED!\n", task_params->task_name);
+					memset(log_buffer, '0', strlen(log_buffer));
+					memset(time_buffer, '0', strlen(time_buffer));
+					timestamp_log(time_buffer);
+					sprintf(log_buffer, "%s <%s> SETPOINT UPDATED!", time_buffer, task_params->task_name);
+					send_log(mqtt_client, log_buffer);
+	 				// printf("<%s> SETPOINT UPDATED!\n", task_params->task_name);
 	 			}
 			}
      	}
@@ -216,7 +230,7 @@ void master_task(void *arg)
  	master_task_feedback_t feedback_received = {0};
 
  	line_follower_event_t line_follower_received = {0};
- 	uint16_t line_follower_count[HALL_SENSOR_COUNT] = {0};
+ 	int line_follower_count[HALL_SENSOR_COUNT] = {0};
  	uint8_t linef_hysteresis_count = 0;
 
  	motor_task_status_t tasks_status[MOTOR_TASK_COUNT] = {
@@ -289,6 +303,11 @@ void master_task(void *arg)
  			.setpoint = SETPOINT,
  			.rpm = velocidades_angulares[3]
  	};
+
+	//LOGS
+	char log_buffer[90];
+	char time_buffer[10];
+	char hall_sensors_buffer[8];
 
  	while(1)
  	{
@@ -378,7 +397,12 @@ void master_task(void *arg)
 								}
 								else
 								{
-									printf("<%s> tried to store RPM but busy\n", tasks_status[i].task_name);
+									memset(log_buffer, '0', strlen(log_buffer));
+									memset(time_buffer, '0', strlen(time_buffer));
+									timestamp_log(time_buffer);
+									sprintf(log_buffer, "%s <%s> tried to store RPM but busy", time_buffer, tasks_status[i].task_name);
+									send_log(mqtt_client, log_buffer);
+									// printf("<%s> tried to store RPM but busy\n", tasks_status[i].task_name);
 								}
 
 								if(rpm_queue_size >= MOTOR_TASK_COUNT) // si llego al menos 1 mensaje de feedback desde cada task
@@ -394,7 +418,7 @@ void master_task(void *arg)
 									state = ST_MT_CALC_RPM_COMP;
 								}
 
-								printf("<%s>UPDATE-avg_rpm[%4.2f]\n", feedback_received.task_name, feedback_received.average_rpm);
+								// printf("%s <%s>UPDATE-avg_rpm[%4.2f]\n", time_buffer, feedback_received.task_name, feedback_received.average_rpm);
 							}
 						}
  					}
@@ -427,7 +451,9 @@ void master_task(void *arg)
 							{
 								velocidades_lineales_reales[2] = velocidades_lineales_reales[2] - line_follower_count[i]*1.5*LINEF_ANGULAR_COMP;
 							}
-			 				printf("LINEF w<0 / new value %f\n", velocidades_lineales_reales[2]);
+							// // memset(hall_sensors_buffer, '0', strlen(hall_sensors_buffer));
+							// sprintf(hall_sensors_buffer, "%d", line_follower_count[i]);
+							// printf("%d", line_follower_count[i]);
 						}
 						else if(velocidades_lineales[2] > 0.0)
 						{
@@ -439,7 +465,9 @@ void master_task(void *arg)
 							{
 								velocidades_lineales_reales[2] = velocidades_lineales_reales[2] - line_follower_count[i]*1.5*LINEF_ANGULAR_COMP;
 							}
-			 				printf("LINEF w>0 / new value %f\n", velocidades_lineales_reales[2]);
+							// // memset(hall_sensors_buffer, '0', strlen(hall_sensors_buffer));
+							// sprintf(hall_sensors_buffer, "%d", line_follower_count[i]);
+							// printf("%s", hall_sensors_buffer);
 						}
 						else
 						{
@@ -451,18 +479,20 @@ void master_task(void *arg)
 							{
 								velocidades_lineales_reales[2] = velocidades_lineales_reales[2] - line_follower_count[i]*LINEF_ANGULAR_COMP;
 							}
-
 							printf("LINEF w=0 / new value %f\n", velocidades_lineales_reales[2]);
 						}
 					}					
 				}			
- 				printf("cmp vel lin / <%4.2f> <%4.2f> <%4.2f> org / <%4.2f> <%4.2f> <%4.2f> real\n",
- 						velocidades_lineales[0], velocidades_lineales[1], velocidades_lineales[2],
- 						velocidades_lineales_reales[0], velocidades_lineales_reales[1], velocidades_lineales_reales[2]);
-
+				memset(log_buffer, '0', strlen(log_buffer));
+				memset(time_buffer, '0', strlen(time_buffer));
+				timestamp_log(time_buffer);
+				sprintf(log_buffer, "%s cmp vel lin / <%4.2f> <%4.2f> <%4.2f> org / <%4.2f> <%4.2f> <%4.2f> real / %d | %d | %d",
+ 						time_buffer, velocidades_lineales[0], velocidades_lineales[1], velocidades_lineales[2],
+ 						velocidades_lineales_reales[0], velocidades_lineales_reales[1], velocidades_lineales_reales[2],
+						line_follower_count[0], line_follower_count[1], line_follower_count[2]);
+				send_log(mqtt_client, log_buffer);
  				calculo_error_velocidades_lineales(velocidades_lineales, velocidades_lineales_reales, delta_velocidad_lineal);
  				calculo_matriz_cinematica_inversa(delta_velocidad_lineal, velocidad_angular_compensacion);
- 				printf("\n");
 
  				linef_hysteresis_count++;
 
@@ -534,6 +564,11 @@ void app_main(void)
     gpio_initialize();
 
     xTaskCreate(master_task, "master_task", 2048, NULL, 5, NULL);
+
+	wifi_init_sta();
+
+	mqtt_client = mqtt_app_start();
+
     return;
 }
 
@@ -602,3 +637,18 @@ void IRAM_ATTR isr_timer_handler(void *para)
     return;
 }
 
+void timestamp_log(char *strftime_buf_1)
+{
+	time_t now;
+	char strftime_buf[15];
+	struct tm timeinfo;
+
+	time(&now);
+	// Set timezone to China Standard Time
+	setenv("TZ", "UTC-3", 1);
+	tzset();
+
+	localtime_r(&now, &timeinfo);
+	strftime(strftime_buf, sizeof(strftime_buf), "%X", &timeinfo);
+	sprintf(strftime_buf_1, "<%s>", strftime_buf);
+}
