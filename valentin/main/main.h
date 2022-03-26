@@ -7,6 +7,7 @@
 #define MAIN_PID_CONTROLLER_H_
 
 #include <time.h>
+#include <math.h>
 #include <stdio.h>
 #include <string.h>
 #include "freertos/FreeRTOS.h"
@@ -41,6 +42,9 @@
 #define ST_MT_GATHER_RPM			2
 #define ST_MT_CALC_RPM_COMP			3
 #define ST_MT_SEND_RPM_COMPENSATED	4
+
+// MQTT defines
+#define MQTT_SEND_BUFFER 	192
 
 /*
  * For providing working params/resources

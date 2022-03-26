@@ -1,7 +1,7 @@
 #include "main.h"
 
 #define SETPOINT (float)30 // in [m]
-#define VEL_LINEAL_X (float)0.0
+#define VEL_LINEAL_X (float)0.3
 #define VEL_LINEAL_Y (float)-0.25 //m/seg
 #define VEL_ANGULAR (float)0.0  //rpm
 
@@ -70,7 +70,7 @@ void task_motor(void *arg)
  	uint16_t measure_count = 0;
 
 	// //LOGS
-	char log_buffer[70];
+	char log_buffer[MQTT_SEND_BUFFER];
 	char time_buffer[15];
      while (1)
      {
@@ -305,7 +305,7 @@ void master_task(void *arg)
  	};
 
 	//LOGS
-	char log_buffer[90];
+	char log_buffer[MQTT_SEND_BUFFER];
 	char time_buffer[10];
 	char hall_sensors_buffer[8];
 
@@ -437,6 +437,10 @@ void master_task(void *arg)
 				// Obtencion de las velocidades lineales reales a partir de las RPM
  				calculo_matriz_cinematica_directa(rpm_average_array, velocidades_lineales_reales);
 
+ 				float resultante = sqrt((pow(velocidades_lineales_reales[0], 2) + pow(velocidades_lineales_reales[1], 2)));
+ 				//float angulo = atan(velocidades_lineales_reales[1] / velocidades_lineales_reales[0]) * 180/M_PI;
+ 				float angulo = asin(velocidades_lineales_reales[1] / resultante) * 180/M_PI;
+
 				for(int i=0; i<HALL_SENSOR_COUNT; i++)
 	 			{
 					if ((i == 0 || i == 2) && line_follower_count[i] != 0)
@@ -486,10 +490,10 @@ void master_task(void *arg)
 				memset(log_buffer, '0', strlen(log_buffer));
 				memset(time_buffer, '0', strlen(time_buffer));
 				timestamp_log(time_buffer);
-				sprintf(log_buffer, "%s cmp vel lin / <%4.2f> <%4.2f> <%4.2f> org / <%4.2f> <%4.2f> <%4.2f> real / %d | %d | %d",
+				sprintf(log_buffer, "%s / <%4.2f> <%4.2f> <%4.2f> org / <%4.2f> <%4.2f> <%4.2f> real / linef %d | %d | %d / <R,ang> = <%4.2f, %4.2f>",
  						time_buffer, velocidades_lineales[0], velocidades_lineales[1], velocidades_lineales[2],
  						velocidades_lineales_reales[0], velocidades_lineales_reales[1], velocidades_lineales_reales[2],
-						line_follower_count[0], line_follower_count[1], line_follower_count[2]);
+						line_follower_count[0], line_follower_count[1], line_follower_count[2], resultante, angulo);
 				send_log(mqtt_client, log_buffer);
  				calculo_error_velocidades_lineales(velocidades_lineales, velocidades_lineales_reales, delta_velocidad_lineal);
  				calculo_matriz_cinematica_inversa(delta_velocidad_lineal, velocidad_angular_compensacion);
