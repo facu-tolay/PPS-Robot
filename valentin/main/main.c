@@ -1,9 +1,9 @@
 #include "main.h"
 
 #define SETPOINT (float)30 // in [m]
-#define VEL_LINEAL_X (float)0.3
+#define VEL_LINEAL_X (float)0.0
 #define VEL_LINEAL_Y (float)-0.25 //m/seg
-#define VEL_ANGULAR (float)0.0  //rpm
+#define VEL_ANGULAR (float)7.5  //rpm
 
 // Cola de feedback desde las motor_task hacia master_task
 xQueueHandle master_task_feedback;
@@ -71,7 +71,6 @@ void task_motor(void *arg)
 
 	// //LOGS
 	char log_buffer[MQTT_SEND_BUFFER];
-	char time_buffer[15];
      while (1)
      {
      	// receive from interrupt (encoder, line follower)
@@ -166,7 +165,6 @@ void task_motor(void *arg)
  				motorStop(task_params->assigned_motor);
  			}
 
- 			//printf("rpm %s: %4.3f - out: %d\n", task_params->task_name, rpm_calc, params.output);
      	}
 
      	// receive new params from master task
@@ -193,22 +191,16 @@ void task_motor(void *arg)
 	 				master_feedback.status = TASK_STATUS_IDLE;
 					xQueueSend(master_task_feedback, &master_feedback, 0);
 					memset(log_buffer, '0', strlen(log_buffer));
-					memset(time_buffer, '0', strlen(time_buffer));
-					timestamp_log(time_buffer);
-					sprintf(log_buffer, "%s <%s> IDLE FROM MASTER!", time_buffer, task_params->task_name);
-					send_log(mqtt_client, log_buffer);
-					// printf("<%s> IDLE FROM MASTER!\n", task_params->task_name);
+					sprintf(log_buffer, "<%s> IDLE FROM MASTER!", task_params->task_name);
+					send_log(mqtt_client, log_buffer, "info");
 	 			}
 	 			else
 	 			{
 	 				master_feedback.status = TASK_STATUS_WORKING;
 	 				xQueueSend(master_task_feedback, &master_feedback, 0);
 					memset(log_buffer, '0', strlen(log_buffer));
-					memset(time_buffer, '0', strlen(time_buffer));
-					timestamp_log(time_buffer);
-					sprintf(log_buffer, "%s <%s> SETPOINT UPDATED!", time_buffer, task_params->task_name);
-					send_log(mqtt_client, log_buffer);
-	 				// printf("<%s> SETPOINT UPDATED!\n", task_params->task_name);
+					sprintf(log_buffer, "<%s> SETPOINT UPDATED!", task_params->task_name);
+					send_log(mqtt_client, log_buffer, "info");
 	 			}
 			}
      	}
@@ -306,8 +298,6 @@ void master_task(void *arg)
 
 	//LOGS
 	char log_buffer[MQTT_SEND_BUFFER];
-	char time_buffer[10];
-	char hall_sensors_buffer[8];
 
  	while(1)
  	{
@@ -398,11 +388,8 @@ void master_task(void *arg)
 								else
 								{
 									memset(log_buffer, '0', strlen(log_buffer));
-									memset(time_buffer, '0', strlen(time_buffer));
-									timestamp_log(time_buffer);
-									sprintf(log_buffer, "%s <%s> tried to store RPM but busy", time_buffer, tasks_status[i].task_name);
-									send_log(mqtt_client, log_buffer);
-									// printf("<%s> tried to store RPM but busy\n", tasks_status[i].task_name);
+									sprintf(log_buffer, "<%s> tried to store RPM but busy", tasks_status[i].task_name);
+									send_log(mqtt_client, log_buffer, "warning");
 								}
 
 								if(rpm_queue_size >= MOTOR_TASK_COUNT) // si llego al menos 1 mensaje de feedback desde cada task
@@ -417,8 +404,6 @@ void master_task(void *arg)
 
 									state = ST_MT_CALC_RPM_COMP;
 								}
-
-								// printf("%s <%s>UPDATE-avg_rpm[%4.2f]\n", time_buffer, feedback_received.task_name, feedback_received.average_rpm);
 							}
 						}
  					}
@@ -438,7 +423,6 @@ void master_task(void *arg)
  				calculo_matriz_cinematica_directa(rpm_average_array, velocidades_lineales_reales);
 
  				float resultante = sqrt((pow(velocidades_lineales_reales[0], 2) + pow(velocidades_lineales_reales[1], 2)));
- 				//float angulo = atan(velocidades_lineales_reales[1] / velocidades_lineales_reales[0]) * 180/M_PI;
  				float angulo = asin(velocidades_lineales_reales[1] / resultante) * 180/M_PI;
 
 				for(int i=0; i<HALL_SENSOR_COUNT; i++)
@@ -455,9 +439,6 @@ void master_task(void *arg)
 							{
 								velocidades_lineales_reales[2] = velocidades_lineales_reales[2] - line_follower_count[i]*1.5*LINEF_ANGULAR_COMP;
 							}
-							// // memset(hall_sensors_buffer, '0', strlen(hall_sensors_buffer));
-							// sprintf(hall_sensors_buffer, "%d", line_follower_count[i]);
-							// printf("%d", line_follower_count[i]);
 						}
 						else if(velocidades_lineales[2] > 0.0)
 						{
@@ -469,9 +450,6 @@ void master_task(void *arg)
 							{
 								velocidades_lineales_reales[2] = velocidades_lineales_reales[2] - line_follower_count[i]*1.5*LINEF_ANGULAR_COMP;
 							}
-							// // memset(hall_sensors_buffer, '0', strlen(hall_sensors_buffer));
-							// sprintf(hall_sensors_buffer, "%d", line_follower_count[i]);
-							// printf("%s", hall_sensors_buffer);
 						}
 						else
 						{
@@ -488,13 +466,17 @@ void master_task(void *arg)
 					}					
 				}			
 				memset(log_buffer, '0', strlen(log_buffer));
-				memset(time_buffer, '0', strlen(time_buffer));
-				timestamp_log(time_buffer);
-				sprintf(log_buffer, "%s / <%4.2f> <%4.2f> <%4.2f> org / <%4.2f> <%4.2f> <%4.2f> real / linef %d | %d | %d / <R,ang> = <%4.2f, %4.2f>",
- 						time_buffer, velocidades_lineales[0], velocidades_lineales[1], velocidades_lineales[2],
+				// sprintf(log_buffer, "org: %4.2f | %4.2f | %4.2f real: %4.2f | %4.2f | %4.2f  linef: %d | %d | %d  R,ang: %4.2f | %4.2f",
+ 				// 		velocidades_lineales[0], velocidades_lineales[1], velocidades_lineales[2],
+ 				// 		velocidades_lineales_reales[0], velocidades_lineales_reales[1], velocidades_lineales_reales[2],
+				// 		line_follower_count[0], line_follower_count[1], line_follower_count[2], resultante, angulo);
+				sprintf(log_buffer, "'org': '%4.2f | %4.2f | %4.2f','real': '%4.2f | %4.2f | %4.2f','linef': '%d | %d | %d','R-ang': '%4.2f | %4.2f'",
+ 						velocidades_lineales[0], velocidades_lineales[1], velocidades_lineales[2],
  						velocidades_lineales_reales[0], velocidades_lineales_reales[1], velocidades_lineales_reales[2],
 						line_follower_count[0], line_follower_count[1], line_follower_count[2], resultante, angulo);
-				send_log(mqtt_client, log_buffer);
+
+				send_log(mqtt_client, log_buffer, "info");
+				
  				calculo_error_velocidades_lineales(velocidades_lineales, velocidades_lineales_reales, delta_velocidad_lineal);
  				calculo_matriz_cinematica_inversa(delta_velocidad_lineal, velocidad_angular_compensacion);
 
@@ -639,20 +621,4 @@ void IRAM_ATTR isr_timer_handler(void *para)
 
     timer_spinlock_give(TIMER_GROUP_0);
     return;
-}
-
-void timestamp_log(char *strftime_buf_1)
-{
-	time_t now;
-	char strftime_buf[15];
-	struct tm timeinfo;
-
-	time(&now);
-	// Set timezone to China Standard Time
-	setenv("TZ", "UTC-3", 1);
-	tzset();
-
-	localtime_r(&now, &timeinfo);
-	strftime(strftime_buf, sizeof(strftime_buf), "%X", &timeinfo);
-	sprintf(strftime_buf_1, "<%s>", strftime_buf);
 }

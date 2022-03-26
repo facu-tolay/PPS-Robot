@@ -60,10 +60,9 @@ void log_error_if_nonzero(const char *message, int error_code)
 }
 
 
-void send_log(esp_mqtt_client_handle_t client, char *log_buffer)
+void send_log(esp_mqtt_client_handle_t client, char *log_buffer, char *topic)
 {
-    // if (esp_mqtt_client_enqueue(client, "info", log_buffer, 0, 0, 0, true) == -1)
-    if (esp_mqtt_client_publish(client, "info", log_buffer, 0, 0, 0) == -1)
+    if (esp_mqtt_client_publish(client, topic, log_buffer, 0, 0, 0) == -1)
     {
         ESP_LOGE(TAG_1, "error in enqueue msg");
     }
