@@ -1,4 +1,4 @@
-#include "MotorControl.h"
+#include "motor_control.h"
 
 ledc_channel_config_t ledc_channels[CANT_LEDC_CHANNELS] = {
 	{

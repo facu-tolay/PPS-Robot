@@ -5,7 +5,7 @@
  *      Author: Administrador
  */
 
-#include "PID.h"
+#include "pid.h"
 
 void PID_Compute(PID_params_t *params_in)
 {

@@ -5,7 +5,7 @@
  *      Author: Administrador
  */
 
-#include "Utils.h"
+#include "utils.h"
 
 // Initial configuration for modules
 void timer_initialize(int timer_idx, bool auto_reload, double timer_interval_sec, void (*isr_timer_handler)(void *))

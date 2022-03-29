@@ -6,6 +6,8 @@
 #ifndef MAIN_PID_CONTROLLER_H_
 #define MAIN_PID_CONTROLLER_H_
 
+#include <time.h>
+#include <math.h>
 #include <stdio.h>
 #include <string.h>
 #include "freertos/FreeRTOS.h"
@@ -13,10 +15,12 @@
 #include "freertos/FreeRTOSConfig.h"
 #include "freertos/queue.h"
 #include "constants.h"
-#include "../components/MotorControl/MotorControl.h"
-#include "../components/Kinematics/Kinematics.h"
-#include "../components/PID/PID.h"
-#include "../components/Utils/Utils.h"
+#include "../components/motor_control/motor_control.h"
+#include "../components/kinematics/kinematics.h"
+#include "../components/pid/pid.h"
+#include "../components/utils/utils.h"
+#include "../components/mqtt_cmp/client_mqtt.h"
+#include "../components/wifi/wifi.h"
 
 #define INCLUDE_vTaskDelay 1
 
@@ -38,6 +42,9 @@
 #define ST_MT_GATHER_RPM			2
 #define ST_MT_CALC_RPM_COMP			3
 #define ST_MT_SEND_RPM_COMPENSATED	4
+
+// MQTT defines
+#define MQTT_SEND_BUFFER 	192
 
 /*
  * For providing working params/resources

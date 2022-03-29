@@ -3,7 +3,7 @@
 #define SETPOINT (float)30 // in [m]
 #define VEL_LINEAL_X (float)0.0
 #define VEL_LINEAL_Y (float)-0.25 //m/seg
-#define VEL_ANGULAR (float)0.0  //rpm
+#define VEL_ANGULAR (float)7.5  //rpm
 
 // Cola de feedback desde las motor_task hacia master_task
 xQueueHandle master_task_feedback;
@@ -27,6 +27,9 @@ task_params_t task_params_A;
 task_params_t task_params_B;
 task_params_t task_params_C;
 task_params_t task_params_D;
+
+//Identificador de cliente mqtt
+esp_mqtt_client_handle_t mqtt_client;
 
 void task_motor(void *arg)
 {
@@ -66,6 +69,8 @@ void task_motor(void *arg)
  	int16_t count_sum = 0;
  	uint16_t measure_count = 0;
 
+	// //LOGS
+	char log_buffer[MQTT_SEND_BUFFER];
      while (1)
      {
      	// receive from interrupt (encoder, line follower)
@@ -160,7 +165,6 @@ void task_motor(void *arg)
  				motorStop(task_params->assigned_motor);
  			}
 
- 			//printf("rpm %s: %4.3f - out: %d\n", task_params->task_name, rpm_calc, params.output);
      	}
 
      	// receive new params from master task
@@ -186,15 +190,17 @@ void task_motor(void *arg)
 	 			{
 	 				master_feedback.status = TASK_STATUS_IDLE;
 					xQueueSend(master_task_feedback, &master_feedback, 0);
-
-					printf("<%s> IDLE FROM MASTER!\n", task_params->task_name);
+					memset(log_buffer, '0', strlen(log_buffer));
+					sprintf(log_buffer, "<%s> IDLE FROM MASTER!", task_params->task_name);
+					send_log(mqtt_client, log_buffer, "info");
 	 			}
 	 			else
 	 			{
 	 				master_feedback.status = TASK_STATUS_WORKING;
 	 				xQueueSend(master_task_feedback, &master_feedback, 0);
-
-	 				printf("<%s> SETPOINT UPDATED!\n", task_params->task_name);
+					memset(log_buffer, '0', strlen(log_buffer));
+					sprintf(log_buffer, "<%s> SETPOINT UPDATED!", task_params->task_name);
+					send_log(mqtt_client, log_buffer, "info");
 	 			}
 			}
      	}
@@ -216,7 +222,7 @@ void master_task(void *arg)
  	master_task_feedback_t feedback_received = {0};
 
  	line_follower_event_t line_follower_received = {0};
- 	uint16_t line_follower_count[HALL_SENSOR_COUNT] = {0};
+ 	int line_follower_count[HALL_SENSOR_COUNT] = {0};
  	uint8_t linef_hysteresis_count = 0;
 
  	motor_task_status_t tasks_status[MOTOR_TASK_COUNT] = {
@@ -289,6 +295,9 @@ void master_task(void *arg)
  			.setpoint = SETPOINT,
  			.rpm = velocidades_angulares[3]
  	};
+
+	//LOGS
+	char log_buffer[MQTT_SEND_BUFFER];
 
  	while(1)
  	{
@@ -378,7 +387,9 @@ void master_task(void *arg)
 								}
 								else
 								{
-									printf("<%s> tried to store RPM but busy\n", tasks_status[i].task_name);
+									memset(log_buffer, '0', strlen(log_buffer));
+									sprintf(log_buffer, "<%s> tried to store RPM but busy", tasks_status[i].task_name);
+									send_log(mqtt_client, log_buffer, "warning");
 								}
 
 								if(rpm_queue_size >= MOTOR_TASK_COUNT) // si llego al menos 1 mensaje de feedback desde cada task
@@ -393,8 +404,6 @@ void master_task(void *arg)
 
 									state = ST_MT_CALC_RPM_COMP;
 								}
-
-								printf("<%s>UPDATE-avg_rpm[%4.2f]\n", feedback_received.task_name, feedback_received.average_rpm);
 							}
 						}
  					}
@@ -413,6 +422,9 @@ void master_task(void *arg)
 				// Obtencion de las velocidades lineales reales a partir de las RPM
  				calculo_matriz_cinematica_directa(rpm_average_array, velocidades_lineales_reales);
 
+ 				float resultante = sqrt((pow(velocidades_lineales_reales[0], 2) + pow(velocidades_lineales_reales[1], 2)));
+ 				float angulo = asin(velocidades_lineales_reales[1] / resultante) * 180/M_PI;
+
 				for(int i=0; i<HALL_SENSOR_COUNT; i++)
 	 			{
 					if ((i == 0 || i == 2) && line_follower_count[i] != 0)
@@ -427,7 +439,6 @@ void master_task(void *arg)
 							{
 								velocidades_lineales_reales[2] = velocidades_lineales_reales[2] - line_follower_count[i]*1.5*LINEF_ANGULAR_COMP;
 							}
-			 				printf("LINEF w<0 / new value %f\n", velocidades_lineales_reales[2]);
 						}
 						else if(velocidades_lineales[2] > 0.0)
 						{
@@ -439,7 +450,6 @@ void master_task(void *arg)
 							{
 								velocidades_lineales_reales[2] = velocidades_lineales_reales[2] - line_follower_count[i]*1.5*LINEF_ANGULAR_COMP;
 							}
-			 				printf("LINEF w>0 / new value %f\n", velocidades_lineales_reales[2]);
 						}
 						else
 						{
@@ -451,18 +461,24 @@ void master_task(void *arg)
 							{
 								velocidades_lineales_reales[2] = velocidades_lineales_reales[2] - line_follower_count[i]*LINEF_ANGULAR_COMP;
 							}
-
 							printf("LINEF w=0 / new value %f\n", velocidades_lineales_reales[2]);
 						}
 					}					
 				}			
- 				printf("cmp vel lin / <%4.2f> <%4.2f> <%4.2f> org / <%4.2f> <%4.2f> <%4.2f> real\n",
+				memset(log_buffer, '0', strlen(log_buffer));
+				// sprintf(log_buffer, "org: %4.2f | %4.2f | %4.2f real: %4.2f | %4.2f | %4.2f  linef: %d | %d | %d  R,ang: %4.2f | %4.2f",
+ 				// 		velocidades_lineales[0], velocidades_lineales[1], velocidades_lineales[2],
+ 				// 		velocidades_lineales_reales[0], velocidades_lineales_reales[1], velocidades_lineales_reales[2],
+				// 		line_follower_count[0], line_follower_count[1], line_follower_count[2], resultante, angulo);
+				sprintf(log_buffer, "'org': '%4.2f | %4.2f | %4.2f','real': '%4.2f | %4.2f | %4.2f','linef': '%d | %d | %d','R-ang': '%4.2f | %4.2f'",
  						velocidades_lineales[0], velocidades_lineales[1], velocidades_lineales[2],
- 						velocidades_lineales_reales[0], velocidades_lineales_reales[1], velocidades_lineales_reales[2]);
+ 						velocidades_lineales_reales[0], velocidades_lineales_reales[1], velocidades_lineales_reales[2],
+						line_follower_count[0], line_follower_count[1], line_follower_count[2], resultante, angulo);
 
+				send_log(mqtt_client, log_buffer, "info");
+				
  				calculo_error_velocidades_lineales(velocidades_lineales, velocidades_lineales_reales, delta_velocidad_lineal);
  				calculo_matriz_cinematica_inversa(delta_velocidad_lineal, velocidad_angular_compensacion);
- 				printf("\n");
 
  				linef_hysteresis_count++;
 
@@ -534,6 +550,11 @@ void app_main(void)
     gpio_initialize();
 
     xTaskCreate(master_task, "master_task", 2048, NULL, 5, NULL);
+
+	wifi_init_sta();
+
+	mqtt_client = mqtt_app_start();
+
     return;
 }
 
@@ -601,4 +622,3 @@ void IRAM_ATTR isr_timer_handler(void *para)
     timer_spinlock_give(TIMER_GROUP_0);
     return;
 }
-
