@@ -1,6 +1,6 @@
 #include "main.h"
 
-#define SETPOINT (float)30 // in [m]
+#define SETPOINT (float)10 // in [m]
 #define VEL_LINEAL_X (float)0.0
 #define VEL_LINEAL_Y (float)-0.25 //m/seg
 #define VEL_ANGULAR (float)7.5  //rpm
@@ -22,6 +22,7 @@ xQueueHandle master_task_motor_B_rcv_queue;
 xQueueHandle master_task_motor_C_rcv_queue;
 xQueueHandle master_task_motor_D_rcv_queue;
 xQueueHandle line_follower_master_rcv_queue;
+xQueueHandle master_task_mqtt_receive;
 
 task_params_t task_params_A;
 task_params_t task_params_B;
@@ -71,8 +72,8 @@ void task_motor(void *arg)
 
 	// //LOGS
 	char log_buffer[MQTT_SEND_BUFFER];
-     while (1)
-     {
+    while (1)
+    {
      	// receive from interrupt (encoder, line follower)
      	if(xQueueReceive(*(task_params->rpm_count_rcv_queue), &evt_interrupt, 10) == pdTRUE)
      	{
@@ -204,7 +205,7 @@ void task_motor(void *arg)
 	 			}
 			}
      	}
-     }
+    }
  }
 
 void master_task(void *arg)
@@ -220,6 +221,7 @@ void master_task(void *arg)
 	uint8_t flag_stop_all_motors = 0;
 
  	master_task_feedback_t feedback_received = {0};
+ 	mqtt_receive_t mqtt_received = {0};
 
  	line_follower_event_t line_follower_received = {0};
  	int line_follower_count[HALL_SENSOR_COUNT] = {0};
@@ -301,6 +303,25 @@ void master_task(void *arg)
 
  	while(1)
  	{
+ 		// receive MQTT message
+ 		if(xQueueReceive(master_task_mqtt_receive, &mqtt_received, 10) == pdTRUE)
+		{
+ 			calculo_matriz_cinematica_inversa(mqtt_received.new_linear_velocity, velocidades_angulares);
+
+			motor_A_data.rpm = velocidades_angulares[0];
+			motor_A_data.setpoint = mqtt_received.setpoint;
+			motor_B_data.rpm = velocidades_angulares[1];
+			motor_B_data.setpoint = mqtt_received.setpoint;
+			motor_C_data.rpm = velocidades_angulares[2];
+			motor_C_data.setpoint = mqtt_received.setpoint;
+			motor_D_data.rpm = velocidades_angulares[3];
+			motor_D_data.setpoint = mqtt_received.setpoint;
+
+			flag_stop_all_motors = 0;
+
+			state = ST_MT_SEND_SETPOINTS;
+		}
+
  		// receive line follower pulses
  		if(xQueueReceive(line_follower_master_rcv_queue, &line_follower_received, 10) == pdTRUE)
  		{
@@ -466,10 +487,6 @@ void master_task(void *arg)
 					}					
 				}			
 				memset(log_buffer, '0', strlen(log_buffer));
-				// sprintf(log_buffer, "org: %4.2f | %4.2f | %4.2f real: %4.2f | %4.2f | %4.2f  linef: %d | %d | %d  R,ang: %4.2f | %4.2f",
- 				// 		velocidades_lineales[0], velocidades_lineales[1], velocidades_lineales[2],
- 				// 		velocidades_lineales_reales[0], velocidades_lineales_reales[1], velocidades_lineales_reales[2],
-				// 		line_follower_count[0], line_follower_count[1], line_follower_count[2], resultante, angulo);
 				sprintf(log_buffer, "'org': '%4.2f | %4.2f | %4.2f','real': '%4.2f | %4.2f | %4.2f','linef': '%d | %d | %d','R-ang': '%4.2f | %4.2f'",
  						velocidades_lineales[0], velocidades_lineales[1], velocidades_lineales[2],
  						velocidades_lineales_reales[0], velocidades_lineales_reales[1], velocidades_lineales_reales[2],
@@ -543,6 +560,7 @@ void app_main(void)
     master_task_motor_D_rcv_queue = xQueueCreate(10, sizeof(master_task_motor_t));
 
     line_follower_master_rcv_queue = xQueueCreate(10, sizeof(line_follower_event_t));
+    master_task_mqtt_receive = xQueueCreate(10, sizeof(mqtt_receive_t));
 
     timer_initialize(TIMER_1, TIMER_AUTORELOAD_EN, TIMER_INTERVAL_RPM_MEASURE, isr_timer_handler);
 
@@ -553,7 +571,7 @@ void app_main(void)
 
 	wifi_init_sta();
 
-	mqtt_client = mqtt_app_start();
+	mqtt_client = mqtt_app_start(master_task_mqtt_receive);
 
     return;
 }

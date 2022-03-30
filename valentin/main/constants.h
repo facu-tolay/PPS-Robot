@@ -55,4 +55,13 @@
 #define DIRECTION_CW	1
 #define DIRECTION_CCW	0
 
+/*
+ * For receiving MQTT messages
+ * */
+typedef struct {
+	float new_linear_velocity[3];
+	float setpoint;
+} mqtt_receive_t;
+
+
 #endif
