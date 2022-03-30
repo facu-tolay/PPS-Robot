@@ -306,7 +306,10 @@ void master_task(void *arg)
  		// receive MQTT message
  		if(xQueueReceive(master_task_mqtt_receive, &mqtt_received, 10) == pdTRUE)
 		{
- 			calculo_matriz_cinematica_inversa(mqtt_received.new_linear_velocity, velocidades_angulares);
+ 		 	velocidades_lineales[0] = mqtt_received.new_linear_velocity[0];
+ 		 	velocidades_lineales[1] = mqtt_received.new_linear_velocity[1];
+ 		 	velocidades_lineales[2] = mqtt_received.new_linear_velocity[2];
+ 		 	calculo_matriz_cinematica_inversa(velocidades_lineales, velocidades_angulares);
 
 			motor_A_data.rpm = velocidades_angulares[0];
 			motor_A_data.setpoint = mqtt_received.setpoint;
