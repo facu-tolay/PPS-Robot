@@ -1,7 +1,7 @@
 #include "main.h"
 
 #define SETPOINT (float)30 // in [m]
-#define VEL_LINEAL_X (float)0.0
+#define VEL_LINEAL_X (float)0.5
 #define VEL_LINEAL_Y (float)-0.25 //m/seg
 #define VEL_ANGULAR (float)7.5  //rpm
 
@@ -470,7 +470,7 @@ void master_task(void *arg)
  				// 		velocidades_lineales[0], velocidades_lineales[1], velocidades_lineales[2],
  				// 		velocidades_lineales_reales[0], velocidades_lineales_reales[1], velocidades_lineales_reales[2],
 				// 		line_follower_count[0], line_follower_count[1], line_follower_count[2], resultante, angulo);
-				sprintf(log_buffer, "'org': '%4.2f | %4.2f | %4.2f','real': '%4.2f | %4.2f | %4.2f','linef': '%d | %d | %d','R-ang': '%4.2f | %4.2f'",
+				sprintf(log_buffer, "%4.2f, %4.2f, %4.2f, %4.2f, %4.2f, %4.2f, %d, %d, %d, %4.2f, %4.2f'",
  						velocidades_lineales[0], velocidades_lineales[1], velocidades_lineales[2],
  						velocidades_lineales_reales[0], velocidades_lineales_reales[1], velocidades_lineales_reales[2],
 						line_follower_count[0], line_follower_count[1], line_follower_count[2], resultante, angulo);
