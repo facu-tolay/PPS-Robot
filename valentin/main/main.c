@@ -22,7 +22,9 @@ xQueueHandle master_task_motor_B_rcv_queue;
 xQueueHandle master_task_motor_C_rcv_queue;
 xQueueHandle master_task_motor_D_rcv_queue;
 xQueueHandle line_follower_master_rcv_queue;
-xQueueHandle master_task_mqtt_receive;
+xQueueHandle master_task_mqtt_receive_setpoint;
+xQueueHandle master_task_mqtt_receive_pid_values;
+xQueueHandle master_task_mqtt_receive_command;
 
 task_params_t task_params_A;
 task_params_t task_params_B;
@@ -221,7 +223,9 @@ void master_task(void *arg)
 	uint8_t flag_stop_all_motors = 0;
 
  	master_task_feedback_t feedback_received = {0};
- 	mqtt_receive_t mqtt_received = {0};
+ 	mqtt_receive_setpoint_t mqtt_received_setpoint = {0};
+ 	mqtt_receive_pid_t mqtt_received_pid_values = {0};
+ 	mqtt_receive_cmd_t mqtt_received_command = {0};
 
  	line_follower_event_t line_follower_received = {0};
  	int line_follower_count[HALL_SENSOR_COUNT] = {0};
@@ -278,9 +282,7 @@ void master_task(void *arg)
  	velocidades_lineales[2] = VEL_ANGULAR;
  	calculo_matriz_cinematica_inversa(velocidades_lineales, velocidades_angulares);
 
-
 	// VER SI ESTO SE PUEDE METER EN LA FSM
-
  	master_task_motor_t motor_A_data =  {
  			.setpoint = SETPOINT,
  			.rpm = velocidades_angulares[0]
@@ -303,26 +305,34 @@ void master_task(void *arg)
 
  	while(1)
  	{
- 		// receive MQTT message
- 		if(xQueueReceive(master_task_mqtt_receive, &mqtt_received, 10) == pdTRUE)
+ 		if(xQueueReceive(master_task_mqtt_receive_setpoint, &mqtt_received_setpoint, 10) == pdTRUE) // receive MQTT message with setpoint
 		{
- 		 	velocidades_lineales[0] = mqtt_received.new_linear_velocity[0];
- 		 	velocidades_lineales[1] = mqtt_received.new_linear_velocity[1];
- 		 	velocidades_lineales[2] = mqtt_received.new_linear_velocity[2];
+ 		 	velocidades_lineales[0] = mqtt_received_setpoint.new_linear_velocity[0];
+ 		 	velocidades_lineales[1] = mqtt_received_setpoint.new_linear_velocity[1];
+ 		 	velocidades_lineales[2] = mqtt_received_setpoint.new_linear_velocity[2];
  		 	calculo_matriz_cinematica_inversa(velocidades_lineales, velocidades_angulares);
 
 			motor_A_data.rpm = velocidades_angulares[0];
-			motor_A_data.setpoint = mqtt_received.setpoint;
+			motor_A_data.setpoint = mqtt_received_setpoint.setpoint;
 			motor_B_data.rpm = velocidades_angulares[1];
-			motor_B_data.setpoint = mqtt_received.setpoint;
+			motor_B_data.setpoint = mqtt_received_setpoint.setpoint;
 			motor_C_data.rpm = velocidades_angulares[2];
-			motor_C_data.setpoint = mqtt_received.setpoint;
+			motor_C_data.setpoint = mqtt_received_setpoint.setpoint;
 			motor_D_data.rpm = velocidades_angulares[3];
-			motor_D_data.setpoint = mqtt_received.setpoint;
+			motor_D_data.setpoint = mqtt_received_setpoint.setpoint;
 
 			flag_stop_all_motors = 0;
 
 			state = ST_MT_SEND_SETPOINTS;
+		}
+ 		else if(xQueueReceive(master_task_mqtt_receive_pid_values, &mqtt_received_pid_values, 10) == pdTRUE) // receive MQTT message with PID values
+		{
+			// change PID values
+ 			// reset state variables for tasks PIDs
+		}
+ 		else if(xQueueReceive(master_task_mqtt_receive_command, &mqtt_received_command, 10) == pdTRUE) // receive MQTT message with command
+		{
+			// take action on command
 		}
 
  		// receive line follower pulses
@@ -563,7 +573,7 @@ void app_main(void)
     master_task_motor_D_rcv_queue = xQueueCreate(10, sizeof(master_task_motor_t));
 
     line_follower_master_rcv_queue = xQueueCreate(10, sizeof(line_follower_event_t));
-    master_task_mqtt_receive = xQueueCreate(10, sizeof(mqtt_receive_t));
+    master_task_mqtt_receive_setpoint = xQueueCreate(10, sizeof(mqtt_receive_setpoint_t));
 
     timer_initialize(TIMER_1, TIMER_AUTORELOAD_EN, TIMER_INTERVAL_RPM_MEASURE, isr_timer_handler);
 
@@ -574,7 +584,7 @@ void app_main(void)
 
 	wifi_init_sta();
 
-	mqtt_client = mqtt_app_start(master_task_mqtt_receive);
+	mqtt_client = mqtt_app_start(master_task_mqtt_receive_setpoint);
 
     return;
 }
