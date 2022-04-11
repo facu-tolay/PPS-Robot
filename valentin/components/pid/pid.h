@@ -12,9 +12,9 @@
 #include "../../main/constants.h"
 
 // Proportional, Integral and Derivative terms
-#define _Kp (float)	11
+#define _Kp (float)	13
 #define _Ki (float) 7.3
-#define _Kd (float) 0.2
+#define _Kd (float) 0.23
 #define _dt (float)TIMER_INTERVAL_RPM_MEASURE
 
 /*
