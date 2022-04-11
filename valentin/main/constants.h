@@ -55,4 +55,27 @@
 #define DIRECTION_CW	1
 #define DIRECTION_CCW	0
 
+/*
+ * For receiving MQTT messages with new setpoint
+ * */
+typedef struct {
+	float new_linear_velocity[3];
+	float setpoint;
+} mqtt_receive_setpoint_t;
+
+/*
+ * For receiving MQTT messages with new PID values
+ * */
+typedef struct {
+	float pid_values[3];
+} mqtt_receive_pid_t;
+
+/*
+ * For receiving MQTT messages with a command
+ * */
+typedef struct {
+	uint8_t command;
+} mqtt_receive_cmd_t;
+
+
 #endif

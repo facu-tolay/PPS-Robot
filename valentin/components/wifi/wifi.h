@@ -26,8 +26,8 @@
 */
 // #define WIFI_SSID      "Sensei-2.4"
 // #define WIFI_PASS      "a1b2c3d4E5"
-#define WIFI_SSID      "Nokia7.1"
-#define WIFI_PASS      "033fda75299f"
+#define WIFI_SSID      "LAC Premium"
+#define WIFI_PASS      "reddepetri"
 #define MAXIMUM_RETRY  5
 
 /* The event group allows multiple bits for each event, but we only care about two events:
