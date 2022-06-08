@@ -38,13 +38,15 @@
 
 // MASTER TASK states defines
 #define ST_MT_INIT					0
-#define ST_MT_SEND_SETPOINTS		1
+#define ST_MT_IDLE					1
 #define ST_MT_GATHER_RPM			2
 #define ST_MT_CALC_RPM_COMP			3
 #define ST_MT_SEND_RPM_COMPENSATED	4
+#define ST_MT_DESCANSO				5
 
 // MQTT defines
 #define MQTT_SEND_BUFFER 	192
+#define MQTT_RECV_BUFFER 	64
 
 /*
  * For providing working params/resources
@@ -69,14 +71,6 @@ typedef struct {
 } master_task_feedback_t;
 
 /*
- * For sending new setpoints to motor tasks
- * */
-typedef struct {
-	float setpoint;
-	float rpm;
-} master_task_motor_t;
-
-/*
  * For receiving interrupt events - ENCODERS
  * */
 typedef struct {
@@ -97,7 +91,6 @@ typedef struct {
 	float rpm;
 	uint8_t busy;
 } rpm_queue_t;
-
 
 /*
  * For storing motor tasks status

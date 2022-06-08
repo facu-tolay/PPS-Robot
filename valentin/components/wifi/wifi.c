@@ -34,8 +34,10 @@ void event_handler(void* arg, esp_event_base_t event_base, int32_t event_id, voi
     }
 }
 
-void wifi_init_connection(void)
+int wifi_initialize_connection(void)
 {
+    int return_value = 0;
+
     s_wifi_event_group = xEventGroupCreate();
 
     ESP_ERROR_CHECK(esp_netif_init());
@@ -85,25 +87,29 @@ void wifi_init_connection(void)
     if (bits & WIFI_CONNECTED_BIT)
     {
         ESP_LOGI(TAG, "connected to ap SSID:%s", WIFI_SSID);
+        return_value = ESP_OK;
     }
     else if (bits & WIFI_FAIL_BIT)
     {
         ESP_LOGI(TAG, "Failed to connect to SSID:%s", WIFI_SSID);
+        return_value = ESP_FAIL;
     }
     else
     {
         ESP_LOGE(TAG, "UNEXPECTED EVENT");
+        return_value = ESP_FAIL;
     }
 
     /* The event will not be processed after unregister */
     ESP_ERROR_CHECK(esp_event_handler_instance_unregister(IP_EVENT, IP_EVENT_STA_GOT_IP, instance_got_ip));    
     ESP_ERROR_CHECK(esp_event_handler_instance_unregister(WIFI_EVENT, ESP_EVENT_ANY_ID, instance_any_id));
     vEventGroupDelete(s_wifi_event_group);
+
+    return return_value;
 }
 
-void wifi_init_sta(void)
+int wifi_initialize_station(void)
 {
-    //Initialize NVS
     esp_err_t ret = nvs_flash_init();
     if (ret == ESP_ERR_NVS_NO_FREE_PAGES || ret == ESP_ERR_NVS_NEW_VERSION_FOUND)
     {
@@ -113,5 +119,18 @@ void wifi_init_sta(void)
     ESP_ERROR_CHECK(ret);
 
     ESP_LOGI(TAG, "ESP_WIFI_MODE_STA");
-    wifi_init_connection();
+    if (wifi_initialize_connection() != 0)
+        return ESP_FAIL;
+
+    return ESP_OK;
+}
+
+int wifi_status(void)
+{
+    wifi_ap_record_t ap_info;
+
+    if (esp_wifi_sta_get_ap_info(&ap_info) == ESP_OK)
+        return ESP_OK;
+
+    return ESP_ERR_WIFI_NOT_CONNECT;
 }
