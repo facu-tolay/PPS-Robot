@@ -1,9 +1,9 @@
 #include "main.h"
 
-#define SETPOINT (float)30 // in [m]
+#define SETPOINT (float)8 // in [m]
 #define VEL_LINEAL_X (float)0.0
-#define VEL_LINEAL_Y (float)-0.25 //m/seg
-#define VEL_ANGULAR (float)7.5  //rpm
+#define VEL_LINEAL_Y (float)-0.28 //m/seg
+#define VEL_ANGULAR (float)0.0  //rpm
 
 // Cola de feedback desde las motor_task hacia master_task
 xQueueHandle master_task_feedback;
@@ -73,8 +73,9 @@ void task_motor(void *arg)
 	char log_buffer[MQTT_SEND_BUFFER];
      while (1)
      {
+		vTaskDelay(1);
      	// receive from interrupt (encoder, line follower)
-     	if(xQueueReceive(*(task_params->rpm_count_rcv_queue), &evt_interrupt, 10) == pdTRUE)
+     	if(xQueueReceive(*(task_params->rpm_count_rcv_queue), &evt_interrupt, 0) == pdTRUE)
      	{
      		pulses_buffer[(pulses_buffer_write_index++)%RPM_PULSES_BUFFER_SIZE] = evt_interrupt.pulses_count;
      		pulses_buffer_read_index = pulses_buffer_write_index;
@@ -168,7 +169,7 @@ void task_motor(void *arg)
      	}
 
      	// receive new params from master task
-     	if(xQueueReceive(*(task_params->master_queue_rcv), &evt_master_queue_rcv, 10) == pdTRUE)
+     	if(xQueueReceive(*(task_params->master_queue_rcv), &evt_master_queue_rcv, 0) == pdTRUE)
      	{
      		desired_rpm = evt_master_queue_rcv.rpm;
      		motor_direction = desired_rpm > 0? DIRECTION_CW : DIRECTION_CCW;
@@ -278,7 +279,6 @@ void master_task(void *arg)
 
 
 	// VER SI ESTO SE PUEDE METER EN LA FSM
-
  	master_task_motor_t motor_A_data =  {
  			.setpoint = SETPOINT,
  			.rpm = velocidades_angulares[0]
@@ -298,11 +298,13 @@ void master_task(void *arg)
 
 	//LOGS
 	char log_buffer[MQTT_SEND_BUFFER];
-
+	// memset(log_buffer, '0', strlen(log_buffer));
+	// send_log(mqtt_client, log_buffer, "info");
  	while(1)
  	{
+		vTaskDelay(1);
  		// receive line follower pulses
- 		if(xQueueReceive(line_follower_master_rcv_queue, &line_follower_received, 10) == pdTRUE)
+ 		if(xQueueReceive(line_follower_master_rcv_queue, &line_follower_received, 0) == pdTRUE)
  		{
  			if(linef_hysteresis_count > LINEF_HYSTERESIS)
  			{
@@ -324,13 +326,14 @@ void master_task(void *arg)
  		{
  			case ST_MT_INIT:
  			{
- 				vTaskDelay(200);
+ 				vTaskDelay(100);
  				gpio_set_level(GPIO_READY_LED, 1);
- 				vTaskDelay(100);
+ 				vTaskDelay(50);
  				gpio_set_level(GPIO_READY_LED, 0);
- 				vTaskDelay(100);
+ 				vTaskDelay(50);
  				gpio_set_level(GPIO_ENABLE_MOTORS, 1);
 
+				printf("velocidades_angulares: %4.2f\n", velocidades_angulares[0]);
  				state = ST_MT_SEND_SETPOINTS;
  				break;
  			}
@@ -350,7 +353,7 @@ void master_task(void *arg)
  			case ST_MT_GATHER_RPM:
  			{
  				// rcv feedback from motor tasks
- 				if(xQueueReceive(master_task_feedback, &feedback_received, 10) == pdTRUE)
+ 				if(xQueueReceive(master_task_feedback, &feedback_received, 0) == pdTRUE)
  				{
  					if(feedback_received.status == TASK_STATUS_IDLE)
 					{
@@ -404,6 +407,8 @@ void master_task(void *arg)
 
 									state = ST_MT_CALC_RPM_COMP;
 								}
+
+								break;
 							}
 						}
  					}
@@ -429,54 +434,43 @@ void master_task(void *arg)
 	 			{
 					if ((i == 0 || i == 2) && line_follower_count[i] != 0)
 					{						
-						if(velocidades_lineales[2] < 0.0)
+						if(velocidades_lineales[2] != 0)
 						{
 							if(i==0)
 							{
-								velocidades_lineales_reales[2] = velocidades_lineales_reales[2] + line_follower_count[i]*1.5*LINEF_ANGULAR_COMP;
+								velocidades_lineales_reales[2] = velocidades_lineales_reales[2] + line_follower_count[i]*2.0*LINEF_ANGULAR_COMP;
 							}
 							else
 							{
-								velocidades_lineales_reales[2] = velocidades_lineales_reales[2] - line_follower_count[i]*1.5*LINEF_ANGULAR_COMP;
-							}
-						}
-						else if(velocidades_lineales[2] > 0.0)
-						{
-							if(i==0)
-							{
-								velocidades_lineales_reales[2] = velocidades_lineales_reales[2] + line_follower_count[i]*1.5*LINEF_ANGULAR_COMP;
-							}
-							else
-							{
-								velocidades_lineales_reales[2] = velocidades_lineales_reales[2] - line_follower_count[i]*1.5*LINEF_ANGULAR_COMP;
+								velocidades_lineales_reales[2] = velocidades_lineales_reales[2] - line_follower_count[i]*2.0*LINEF_ANGULAR_COMP;
 							}
 						}
 						else
 						{
 							if(i==0)
 							{
-								velocidades_lineales_reales[2] = velocidades_lineales_reales[2] + line_follower_count[i]*LINEF_ANGULAR_COMP;
+								velocidades_lineales_reales[2] = velocidades_lineales_reales[2] + line_follower_count[i]*1.75*LINEF_ANGULAR_COMP;
 							}
 							else
 							{
-								velocidades_lineales_reales[2] = velocidades_lineales_reales[2] - line_follower_count[i]*LINEF_ANGULAR_COMP;
+								velocidades_lineales_reales[2] = velocidades_lineales_reales[2] - line_follower_count[i]*1.75*LINEF_ANGULAR_COMP;
 							}
-							printf("LINEF w=0 / new value %f\n", velocidades_lineales_reales[2]);
 						}
 					}					
 				}			
-				memset(log_buffer, '0', strlen(log_buffer));
-				// sprintf(log_buffer, "org: %4.2f | %4.2f | %4.2f real: %4.2f | %4.2f | %4.2f  linef: %d | %d | %d  R,ang: %4.2f | %4.2f",
+				// memset(log_buffer, '0', strlen(log_buffer));
+				// sprintf(log_buffer, "'org': '%4.2f | %4.2f | %4.2f','real': '%4.2f | %4.2f | %4.2f','linef': '%d | %d | %d','R-ang': '%4.2f | %4.2f', rpm': '%4.2f | %4.2f | %4.2f | %4.2f",
  				// 		velocidades_lineales[0], velocidades_lineales[1], velocidades_lineales[2],
  				// 		velocidades_lineales_reales[0], velocidades_lineales_reales[1], velocidades_lineales_reales[2],
 				// 		line_follower_count[0], line_follower_count[1], line_follower_count[2], resultante, angulo);
-				sprintf(log_buffer, "'org': '%4.2f | %4.2f | %4.2f','real': '%4.2f | %4.2f | %4.2f','linef': '%d | %d | %d','R-ang': '%4.2f | %4.2f'",
- 						velocidades_lineales[0], velocidades_lineales[1], velocidades_lineales[2],
- 						velocidades_lineales_reales[0], velocidades_lineales_reales[1], velocidades_lineales_reales[2],
-						line_follower_count[0], line_follower_count[1], line_follower_count[2], resultante, angulo);
 
+				// send_log(mqtt_client, log_buffer, "info");
+
+				memset(log_buffer, '0', strlen(log_buffer));
+				sprintf(log_buffer, "%4.2f, %4.2f, %4.2f, %4.2f",
+						rpm_queue[0].rpm, rpm_queue[1].rpm, rpm_queue[2].rpm, rpm_queue[3].rpm);
 				send_log(mqtt_client, log_buffer, "info");
-				
+
  				calculo_error_velocidades_lineales(velocidades_lineales, velocidades_lineales_reales, delta_velocidad_lineal);
  				calculo_matriz_cinematica_inversa(delta_velocidad_lineal, velocidad_angular_compensacion);
 

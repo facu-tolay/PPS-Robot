@@ -20,7 +20,8 @@
 #include "esp_log.h"
 #include "mqtt_client.h"
 
-#define BROKER_HOST      "192.168.43.241"
+#define BROKER_HOST      "192.168.1.128"
+// #define BROKER_HOST      "192.168.43.241"
 #define BROKER_PORT      1883
 
 esp_mqtt_client_handle_t mqtt_app_start(void);
