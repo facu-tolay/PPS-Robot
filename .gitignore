@@ -3,3 +3,5 @@ build
 LICENSE
 sdkconfig
 .vscode
+*.csv*
+*.ods*
