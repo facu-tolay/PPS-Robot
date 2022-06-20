@@ -1,12 +1,15 @@
 #include "main.h"
 
-#define SETPOINT (float)8 // in [m]
+#define SETPOINT (float)0 // in [m]
 #define VEL_LINEAL_X (float)0.0
 #define VEL_LINEAL_Y (float)-0.28 //m/seg
 #define VEL_ANGULAR (float)0.0  //rpm
 
 // Cola de feedback desde las motor_task hacia master_task
 xQueueHandle master_task_feedback;
+
+// Cola de setpoint desde la mqtt pusblisher hacia master_task
+xQueueHandle master_task_setpoint;
 
 // Colas donde las task de cada motor independiente recibe
 // los pulsos sensados por el encoder y el seguidor de linea
@@ -30,6 +33,8 @@ task_params_t task_params_D;
 
 //Identificador de cliente mqtt
 esp_mqtt_client_handle_t mqtt_client;
+
+int wifi_flag = 1;
 
 void task_motor(void *arg)
 {
@@ -296,10 +301,13 @@ void master_task(void *arg)
  			.rpm = velocidades_angulares[3]
  	};
 
+
 	//LOGS
 	char log_buffer[MQTT_SEND_BUFFER];
+	char data[MQTT_RECV_BUFFER];
 	// memset(log_buffer, '0', strlen(log_buffer));
 	// send_log(mqtt_client, log_buffer, "info");
+
  	while(1)
  	{
 		vTaskDelay(1);
@@ -333,21 +341,30 @@ void master_task(void *arg)
  				vTaskDelay(50);
  				gpio_set_level(GPIO_ENABLE_MOTORS, 1);
 
-				printf("velocidades_angulares: %4.2f\n", velocidades_angulares[0]);
- 				state = ST_MT_SEND_SETPOINTS;
+				if (wifi_flag == 0)
+				{
+ 					state = ST_MT_IDLE;
+					break;
+				}
+
+ 				state = ST_MT_INIT;
  				break;
  			}
 
- 			case ST_MT_SEND_SETPOINTS:
+ 			case ST_MT_IDLE:
  			{
- 				// send setpoints
- 				xQueueSend(master_task_motor_A_rcv_queue, &motor_A_data, 0);
- 				xQueueSend(master_task_motor_B_rcv_queue, &motor_B_data, 0);
- 				xQueueSend(master_task_motor_C_rcv_queue, &motor_C_data, 0);
- 				xQueueSend(master_task_motor_D_rcv_queue, &motor_D_data, 0);
+ 				if (xQueueReceive(master_task_setpoint, data, 0) == pdTRUE)
+ 				{
+					xQueueSend(master_task_motor_A_rcv_queue, &motor_A_data, 0);
+					xQueueSend(master_task_motor_B_rcv_queue, &motor_B_data, 0);
+					xQueueSend(master_task_motor_C_rcv_queue, &motor_C_data, 0);
+					xQueueSend(master_task_motor_D_rcv_queue, &motor_D_data, 0);
+					state = ST_MT_GATHER_RPM;
+					break;
+				}
 
- 				state = ST_MT_GATHER_RPM;
- 				break;
+				state = ST_MT_IDLE;
+				break;
  			}
 
  			case ST_MT_GATHER_RPM:
@@ -370,7 +387,7 @@ void master_task(void *arg)
 							motor_D_data.setpoint = 0;
 
 							flag_stop_all_motors = 1;
-							state = ST_MT_SEND_SETPOINTS;
+							state = ST_MT_IDLE;
 						}
 					}
  					else
@@ -392,7 +409,7 @@ void master_task(void *arg)
 								{
 									memset(log_buffer, '0', strlen(log_buffer));
 									sprintf(log_buffer, "<%s> tried to store RPM but busy", tasks_status[i].task_name);
-									send_log(mqtt_client, log_buffer, "warning");
+									// send_log(mqtt_client, log_buffer, "warning");
 								}
 
 								if(rpm_queue_size >= MOTOR_TASK_COUNT) // si llego al menos 1 mensaje de feedback desde cada task
@@ -469,7 +486,7 @@ void master_task(void *arg)
 				memset(log_buffer, '0', strlen(log_buffer));
 				sprintf(log_buffer, "%4.2f, %4.2f, %4.2f, %4.2f",
 						rpm_queue[0].rpm, rpm_queue[1].rpm, rpm_queue[2].rpm, rpm_queue[3].rpm);
-				send_log(mqtt_client, log_buffer, "info");
+				// send_log(mqtt_client, log_buffer, "info");
 
  				calculo_error_velocidades_lineales(velocidades_lineales, velocidades_lineales_reales, delta_velocidad_lineal);
  				calculo_matriz_cinematica_inversa(delta_velocidad_lineal, velocidad_angular_compensacion);
@@ -490,7 +507,7 @@ void master_task(void *arg)
 				motor_D_data.rpm = velocidad_angular_compensada[3];
 				motor_D_data.setpoint = -1;
 
- 				state = ST_MT_SEND_SETPOINTS;
+ 				state = ST_MT_IDLE;
  				break;
  			}
 
@@ -525,6 +542,7 @@ void app_main(void)
 
     // initialize queues
     master_task_feedback = xQueueCreate(10, sizeof(master_task_feedback_t));
+    master_task_setpoint = xQueueCreate(10, MQTT_RECV_BUFFER);
 
     encoder_motor_A_rcv_queue = xQueueCreate(10, sizeof(encoder_event_t));
     encoder_motor_B_rcv_queue = xQueueCreate(10, sizeof(encoder_event_t));
@@ -542,12 +560,11 @@ void app_main(void)
 
     motorInitialize();
     gpio_initialize();
+	// nvs_initialize();
+	wifi_flag = wifi_initialize_station();
+	mqtt_client = mqtt_app_start(&master_task_setpoint);
 
     xTaskCreate(master_task, "master_task", 2048, NULL, 5, NULL);
-
-	wifi_init_sta();
-
-	mqtt_client = mqtt_app_start();
 
     return;
 }
@@ -616,3 +633,10 @@ void IRAM_ATTR isr_timer_handler(void *para)
     timer_spinlock_give(TIMER_GROUP_0);
     return;
 }
+
+// int update_setpoint(xQueueHandle *ReceiveQueue, float *setpoint_A, float *setpoint_B,
+// 												float *setpoint_C, float *setpoint_D)
+// {
+// 	if ()
+
+// }												
