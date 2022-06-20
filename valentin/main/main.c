@@ -284,23 +284,10 @@ void master_task(void *arg)
 
 
 	// VER SI ESTO SE PUEDE METER EN LA FSM
- 	master_task_motor_t motor_A_data =  {
- 			.setpoint = SETPOINT,
- 			.rpm = velocidades_angulares[0]
- 	};
- 	master_task_motor_t motor_B_data =  {
- 			.setpoint = SETPOINT,
-			.rpm = velocidades_angulares[1]
- 	};
- 	master_task_motor_t motor_C_data =  {
- 			.setpoint = SETPOINT,
-			.rpm = velocidades_angulares[2]
- 	};
- 	master_task_motor_t motor_D_data =  {
- 			.setpoint = SETPOINT,
- 			.rpm = velocidades_angulares[3]
- 	};
-
+ 	master_task_motor_t motor_A_data =  {0};
+ 	master_task_motor_t motor_B_data =  {0};
+ 	master_task_motor_t motor_C_data =  {0};
+ 	master_task_motor_t motor_D_data =  {0};
 
 	//LOGS
 	char log_buffer[MQTT_SEND_BUFFER];
@@ -355,6 +342,15 @@ void master_task(void *arg)
  			{
  				if (xQueueReceive(master_task_setpoint, data, 0) == pdTRUE)
  				{
+					motor_A_data.rpm = velocidades_angulares[0];
+					motor_A_data.setpoint = 8;
+					motor_B_data.rpm = velocidades_angulares[1];
+					motor_B_data.setpoint = 8;
+					motor_C_data.rpm = velocidades_angulares[2];
+					motor_C_data.setpoint = 8;
+					motor_D_data.rpm = velocidades_angulares[3];
+					motor_D_data.setpoint = 8;
+
 					xQueueSend(master_task_motor_A_rcv_queue, &motor_A_data, 0);
 					xQueueSend(master_task_motor_B_rcv_queue, &motor_B_data, 0);
 					xQueueSend(master_task_motor_C_rcv_queue, &motor_C_data, 0);

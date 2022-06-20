@@ -64,5 +64,6 @@ void receive_setpoint(xQueueHandle *ReceiveQueue, char *data)
 	if (xQueueSend(*ReceiveQueue, data, 0) != pdTRUE)
     {
         ESP_LOGE(TAG_1, "ReceiveQueue full");
-    }    
+    }
+    printf("%s\n", data);
 }
