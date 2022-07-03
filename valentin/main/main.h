@@ -70,14 +70,6 @@ typedef struct {
 } master_task_feedback_t;
 
 /*
- * For sending new setpoints to motor tasks
- * */
-typedef struct {
-	float setpoint;
-	float rpm;
-} master_task_motor_t;
-
-/*
  * For receiving interrupt events - ENCODERS
  * */
 typedef struct {
@@ -98,7 +90,6 @@ typedef struct {
 	float rpm;
 	uint8_t busy;
 } rpm_queue_t;
-
 
 /*
  * For storing motor tasks status

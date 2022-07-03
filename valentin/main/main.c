@@ -1,6 +1,6 @@
 #include "main.h"
 
-#define SETPOINT (float)0 // in [m]
+#define SETPOINT (float)10 // in [m]
 #define VEL_LINEAL_X (float)0.0
 #define VEL_LINEAL_Y (float)-0.28 //m/seg
 #define VEL_ANGULAR (float)0.0  //rpm
@@ -221,6 +221,7 @@ void master_task(void *arg)
  	float velocidades_angulares[MOTOR_TASK_COUNT] = {0};
 	float velocidad_angular_compensacion[MOTOR_TASK_COUNT] = {0};
 	float velocidad_angular_compensada[MOTOR_TASK_COUNT] = {0};
+	motor_mqtt_params_t motor_parameters_data;
 
  	uint8_t state = ST_MT_INIT;
 	uint8_t flag_stop_all_motors = 0;
@@ -271,17 +272,10 @@ void master_task(void *arg)
  			}
  	};
 
- 	// generic task generation
- 	motor_task_creator(&task_params_A, TASK_A_NAME, MOT_A_SEL, &master_task_motor_A_rcv_queue, &encoder_motor_A_rcv_queue);
- 	motor_task_creator(&task_params_B, TASK_B_NAME, MOT_B_SEL, &master_task_motor_B_rcv_queue, &encoder_motor_B_rcv_queue);
- 	motor_task_creator(&task_params_C, TASK_C_NAME, MOT_C_SEL, &master_task_motor_C_rcv_queue, &encoder_motor_C_rcv_queue);
- 	motor_task_creator(&task_params_D, TASK_D_NAME, MOT_D_SEL, &master_task_motor_D_rcv_queue, &encoder_motor_D_rcv_queue);
-
  	velocidades_lineales[0] = VEL_LINEAL_X;
  	velocidades_lineales[1] = VEL_LINEAL_Y;
  	velocidades_lineales[2] = VEL_ANGULAR;
  	calculo_matriz_cinematica_inversa(velocidades_lineales, velocidades_angulares);
-
 
 	// VER SI ESTO SE PUEDE METER EN LA FSM
  	master_task_motor_t motor_A_data =  {0};
@@ -294,6 +288,12 @@ void master_task(void *arg)
 	char data[MQTT_RECV_BUFFER];
 	// memset(log_buffer, '0', strlen(log_buffer));
 	// send_log(mqtt_client, log_buffer, "info");
+
+ 	// generic task generation
+ 	motor_task_creator(&task_params_A, TASK_A_NAME, MOT_A_SEL, &master_task_motor_A_rcv_queue, &encoder_motor_A_rcv_queue);
+ 	motor_task_creator(&task_params_B, TASK_B_NAME, MOT_B_SEL, &master_task_motor_B_rcv_queue, &encoder_motor_B_rcv_queue);
+ 	motor_task_creator(&task_params_C, TASK_C_NAME, MOT_C_SEL, &master_task_motor_C_rcv_queue, &encoder_motor_C_rcv_queue);
+ 	motor_task_creator(&task_params_D, TASK_D_NAME, MOT_D_SEL, &master_task_motor_D_rcv_queue, &encoder_motor_D_rcv_queue);
 
  	while(1)
  	{
@@ -340,8 +340,14 @@ void master_task(void *arg)
 
  			case ST_MT_IDLE:
  			{
- 				if (xQueueReceive(master_task_setpoint, data, 0) == pdTRUE)
+ 				if (xQueueReceive(master_task_setpoint, &motor_parameters_data, 0) == pdTRUE)
  				{
+					// velocidades_lineales[0] = motor_parameters_data.velocidad_lineal_x;
+					// velocidades_lineales[1] = motor_parameters_data.velocidad_lineal_y;
+					// velocidades_lineales[2] = motor_parameters_data.velocidad_angular;
+
+					// calculo_matriz_cinematica_inversa(velocidades_lineales, velocidades_angulares);
+
 					motor_A_data.rpm = velocidades_angulares[0];
 					motor_A_data.setpoint = 8;
 					motor_B_data.rpm = velocidades_angulares[1];
@@ -351,10 +357,20 @@ void master_task(void *arg)
 					motor_D_data.rpm = velocidades_angulares[3];
 					motor_D_data.setpoint = 8;
 
-					xQueueSend(master_task_motor_A_rcv_queue, &motor_A_data, 0);
-					xQueueSend(master_task_motor_B_rcv_queue, &motor_B_data, 0);
-					xQueueSend(master_task_motor_C_rcv_queue, &motor_C_data, 0);
-					xQueueSend(master_task_motor_D_rcv_queue, &motor_D_data, 0);
+					// if (xQueueSend(master_task_motor_A_rcv_queue, &motor_A_data, 100) != pdTRUE)
+					// 	perror("setpoint no enviado");
+					// xQueueSend(master_task_motor_B_rcv_queue, &motor_B_data, 0);
+					// xQueueSend(master_task_motor_C_rcv_queue, &motor_C_data, 0);
+					// xQueueSend(master_task_motor_D_rcv_queue, &motor_D_data, 0);
+					// seteo_parametros_vectores(velocidades_lineales, velocidades_angulares, &motor_parameters_data);
+					
+					// seteo_datos_motor_task(velocidades_angulares[0], motor_parameters_data.setpoint, &motor_A_data, master_task_motor_A_rcv_queue);
+					// seteo_datos_motor_task(velocidades_angulares[1], motor_parameters_data.setpoint, &motor_B_data, master_task_motor_B_rcv_queue);
+					// seteo_datos_motor_task(velocidades_angulares[2], motor_parameters_data.setpoint, &motor_C_data, master_task_motor_C_rcv_queue);
+					// seteo_datos_motor_task(velocidades_angulares[3], motor_parameters_data.setpoint, &motor_D_data, master_task_motor_D_rcv_queue);
+
+		            // ESP_LOGI("ST_MT_GATHER_RPM", "setpoint: %f", motor_parameters_data.setpoint);
+
 					state = ST_MT_GATHER_RPM;
 					break;
 				}
@@ -365,8 +381,10 @@ void master_task(void *arg)
 
  			case ST_MT_GATHER_RPM:
  			{
+		            // ESP_LOGI("ST_MT_GATHER_RPM", "ACABO DE ENTRAR");
+
  				// rcv feedback from motor tasks
- 				if(xQueueReceive(master_task_feedback, &feedback_received, 0) == pdTRUE)
+ 				if(xQueueReceive(master_task_feedback, &feedback_received, 2000) == pdTRUE)
  				{
  					if(feedback_received.status == TASK_STATUS_IDLE)
 					{
@@ -427,11 +445,14 @@ void master_task(void *arg)
  					}
  				}
 
+				state = ST_MT_GATHER_RPM;
  				break;
  			}
 
  			case ST_MT_CALC_RPM_COMP:
  			{
+		        ESP_LOGI("ST_MT_CALC_RPM_COMP", "ACABO DE ENTRAR");
+
  				for(int i=0; i<3; i++)
  				{
  					velocidades_lineales_reales[i] = 0;

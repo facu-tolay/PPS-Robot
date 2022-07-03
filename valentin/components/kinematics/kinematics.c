@@ -129,3 +129,20 @@ void calculo_error_velocidades_lineales(float *velocidad_lineal, float *velocida
         delta_velocidad_lineal[i] = velocidad_lineal_real[i] - velocidad_lineal[i];
     }
 }
+
+void seteo_parametros_vectores(float* vector_velocidad_lineal, float* vector_velocidad_angular, motor_mqtt_params_t* motor_parameters)
+{
+    vector_velocidad_lineal[0] = motor_parameters->velocidad_lineal_x;
+ 	vector_velocidad_lineal[1] = motor_parameters->velocidad_lineal_y;
+ 	vector_velocidad_lineal[2] = motor_parameters->velocidad_angular;
+
+    calculo_matriz_cinematica_inversa(vector_velocidad_lineal, vector_velocidad_angular);
+}
+
+void seteo_datos_motor_task(float velocidad_angular, float setpoint, master_task_motor_t *motor, QueueHandle_t queue)
+{
+	motor->rpm = velocidad_angular;
+	motor->setpoint = setpoint;
+
+	xQueueSend(queue, motor, 0);
+}
