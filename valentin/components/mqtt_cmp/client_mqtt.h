@@ -31,9 +31,9 @@ esp_mqtt_client_handle_t mqtt_app_start(xQueueHandle *ReceiveQueue);
 void mqtt_event_handler(void *handler_args, esp_event_base_t base, int32_t event_id, void *event_data);
 void log_error_if_nonzero(const char *message, int error_code);
 void send_log(esp_mqtt_client_handle_t client, char *log_buffer, char *topic);
-void receive_setpoint(xQueueHandle *ReceiveQueue, char *data);
-void set_valorres_recibidos(struct json_object_element_s* element, float* motor_value);
-void set_valorres_recibidos_1(struct json_object_element_s* element, float* motor_value);
+motor_mqtt_params_t receive_parse_parameters(char *data);
+void send_motor_parameters(motor_mqtt_params_t* motor_values, xQueueHandle* receive_queue);
+
 
 
 

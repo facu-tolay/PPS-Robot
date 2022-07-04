@@ -15,13 +15,14 @@
 #include "freertos/queue.h"
 // #include "../../main/main.h"
 
-
+#pragma pack(push, 1)
 typedef struct {
 	float setpoint;
 	float velocidad_lineal_x;
 	float velocidad_lineal_y;
 	float velocidad_angular;
 } motor_mqtt_params_t;
+#pragma pack(pop)
 
 /*
  * For sending new setpoints to motor tasks
@@ -30,7 +31,6 @@ typedef struct {
 	float setpoint;
 	float rpm;
 } master_task_motor_t;
-
 
 void calculo_matriz_cinematica_inversa(float *vector_velocidad_lineal, float *vector_velocidad_angular);
 void calculo_matriz_cinematica_directa(float *vector_velocidad_angular, float *vector_velocidad_lineal);

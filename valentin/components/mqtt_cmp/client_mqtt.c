@@ -24,6 +24,7 @@ void mqtt_event_handler(void *handler_args, esp_event_base_t base, int32_t event
     esp_mqtt_client_handle_t client = event->client;
     xQueueHandle *receive_queue = (xQueueHandle*)handler_args;
     int msg_id;
+    motor_mqtt_params_t motor_values = {0};
 
     switch ((esp_mqtt_event_id_t)event_id)
     {
@@ -43,7 +44,8 @@ void mqtt_event_handler(void *handler_args, esp_event_base_t base, int32_t event
             break;
         case MQTT_EVENT_DATA:
             ESP_LOGI(TAG_1, "MQTT_EVENT_DATA");
-            receive_setpoint(receive_queue, event->data);
+            motor_values = receive_parse_parameters(event->data);
+            send_motor_parameters(&motor_values, receive_queue);
             break;
         default:
             ESP_LOGI(TAG_1, "Other event id:%d", event->event_id);
@@ -59,24 +61,27 @@ void send_log(esp_mqtt_client_handle_t client, char *log_buffer, char *topic)
     }
 }
 
-void receive_setpoint(xQueueHandle *receive_queue, char *data)
+void send_motor_parameters(motor_mqtt_params_t* motor_values, xQueueHandle* receive_queue)
 {
-    motor_mqtt_params_t motor_values = {0};
-    struct json_value_s *root = json_parse(data, MQQT_DATA_LEN);
-    struct json_object_s *object = json_value_as_object(root);
-
-    set_valorres_recibidos(object->start, &motor_values.setpoint);
-    set_valorres_recibidos((object->start)->next, &motor_values.velocidad_lineal_x);
-    set_valorres_recibidos(((object->start)->next)->next, &motor_values.velocidad_lineal_y);
-    set_valorres_recibidos((((object->start)->next)->next)->next, &motor_values.velocidad_angular);
-
-    if (xQueueSend(*receive_queue, &motor_values, 0) != pdTRUE)
+    if (xQueueSend(*receive_queue, (void*)motor_values, 0) != pdTRUE)
         ESP_LOGE(TAG_1, "error in send motor values");
 }
 
-void set_valorres_recibidos(struct json_object_element_s* element, float* motor_value)
-{
-    struct json_value_s* element_value = element->value;
-    struct json_number_s* element_number = json_value_as_number(element_value);
-    *motor_value = atof(element_number->number);
+motor_mqtt_params_t receive_parse_parameters(char *data)
+{    
+    motor_mqtt_params_t motor_values = {0};
+    char* motor_parameter = NULL;
+    char* line = (char *) calloc(MQQT_DATA_LEN, sizeof(char));
+
+    strncpy(line, data, MQQT_DATA_LEN);
+    motor_parameter = strtok(line, ":");
+    for (int i = 0; i < 4; i++)
+    {
+        ((float*)&motor_values)[i] = atof(motor_parameter);
+        if (i != 3)
+            motor_parameter = strtok(NULL, ":");
+    }    
+    free(line);
+
+    return motor_values;
 }
