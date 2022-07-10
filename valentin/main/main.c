@@ -342,7 +342,6 @@ void master_task(void *arg)
  			{
  				if (xQueueReceive(master_task_setpoint, &motor_values, 0) == pdTRUE)
  				{
-					// ESP_LOGI("ST_MT_IDLE", "ENTRE");
 					velocidades_lineales[0] = motor_values.velocidad_lineal_x;
 					velocidades_lineales[1] = motor_values.velocidad_lineal_y;
 					velocidades_lineales[2] = motor_values.velocidad_angular;
@@ -377,6 +376,10 @@ void master_task(void *arg)
  				{
  					if(feedback_received.status == TASK_STATUS_IDLE)
 					{
+						memset(log_buffer, '0', strlen(log_buffer));
+						sprintf(log_buffer, "LLEGUE A TASK_STATUS_IDLE - MOTOR STOP!");
+						send_log(mqtt_client, log_buffer, "info");
+
  						// must stop all motors
  						if(!flag_stop_all_motors)
 						{
@@ -390,7 +393,7 @@ void master_task(void *arg)
 							motor_D_data.setpoint = 0;
 
 							flag_stop_all_motors = 1;
-							state = ST_MT_IDLE;
+							state = ST_MT_SEND_RPM_COMPENSATED;
 						}
 					}
  					else if(feedback_received.status == TASK_STATUS_WORKING)
@@ -412,7 +415,7 @@ void master_task(void *arg)
 								{
 									memset(log_buffer, '0', strlen(log_buffer));
 									sprintf(log_buffer, "<%s> tried to store RPM but busy", tasks_status[i].task_name);
-									send_log(mqtt_client, log_buffer, "warning");
+									send_log(mqtt_client, log_buffer, "info");
 								}
 
 								if(rpm_queue_size >= MOTOR_TASK_COUNT) // si llego al menos 1 mensaje de feedback desde cada task
@@ -426,6 +429,9 @@ void master_task(void *arg)
 									}
 
 									state = ST_MT_CALC_RPM_COMP;
+									memset(log_buffer, '0', strlen(log_buffer));
+									sprintf(log_buffer, "ST_MT_CALC_RPM_COMP");
+									send_log(mqtt_client, log_buffer, "info");								
 								}
 
 								break;
@@ -489,7 +495,7 @@ void master_task(void *arg)
 				memset(log_buffer, '0', strlen(log_buffer));
 				sprintf(log_buffer, "%4.2f, %4.2f, %4.2f, %4.2f",
 						rpm_queue[0].rpm, rpm_queue[1].rpm, rpm_queue[2].rpm, rpm_queue[3].rpm);
-				// send_log(mqtt_client, log_buffer, "info");
+				send_log(mqtt_client, log_buffer, "info");
 
  				calculo_error_velocidades_lineales(velocidades_lineales, velocidades_lineales_reales, delta_velocidad_lineal);
  				calculo_matriz_cinematica_inversa(delta_velocidad_lineal, velocidad_angular_compensacion);
@@ -510,9 +516,27 @@ void master_task(void *arg)
 				motor_D_data.rpm = velocidad_angular_compensada[3];
 				motor_D_data.setpoint = -1;
 
- 				state = ST_MT_IDLE;
+ 				state = ST_MT_SEND_RPM_COMPENSATED;
  				break;
  			}
+
+			case ST_MT_SEND_RPM_COMPENSATED:
+ 			{
+				xQueueSend(master_task_motor_A_rcv_queue, &motor_A_data, 0);
+				xQueueSend(master_task_motor_B_rcv_queue, &motor_B_data, 0);
+				xQueueSend(master_task_motor_C_rcv_queue, &motor_C_data, 0);
+				xQueueSend(master_task_motor_D_rcv_queue, &motor_D_data, 0);
+
+				if (flag_stop_all_motors)
+				{
+					flag_stop_all_motors = 0;
+					state = ST_MT_IDLE;
+				}
+				else
+					state = ST_MT_GATHER_RPM;				
+
+				break;
+			}
 
  			default:
  			{
@@ -552,10 +576,10 @@ void app_main(void)
     encoder_motor_C_rcv_queue = xQueueCreate(10, sizeof(encoder_event_t));
     encoder_motor_D_rcv_queue = xQueueCreate(10, sizeof(encoder_event_t));
 
-    master_task_motor_A_rcv_queue = xQueueCreate(1, sizeof(master_task_motor_t));
-    master_task_motor_B_rcv_queue = xQueueCreate(1, sizeof(master_task_motor_t));
-    master_task_motor_C_rcv_queue = xQueueCreate(1, sizeof(master_task_motor_t));
-    master_task_motor_D_rcv_queue = xQueueCreate(1, sizeof(master_task_motor_t));
+    master_task_motor_A_rcv_queue = xQueueCreate(10, sizeof(master_task_motor_t));
+    master_task_motor_B_rcv_queue = xQueueCreate(10, sizeof(master_task_motor_t));
+    master_task_motor_C_rcv_queue = xQueueCreate(10, sizeof(master_task_motor_t));
+    master_task_motor_D_rcv_queue = xQueueCreate(10, sizeof(master_task_motor_t));
 
     line_follower_master_rcv_queue = xQueueCreate(10, sizeof(line_follower_event_t));
 
@@ -637,8 +661,7 @@ void IRAM_ATTR isr_timer_handler(void *para)
     return;
 }
 
-// int update_setpoint(xQueueHandle *ReceiveQueue, float *setpoint_A, float *setpoint_B,
-// 												float *setpoint_C, float *setpoint_D)
+// int update_setpoint(xQueueHandle *ReceiveQueue, float *setpoint_A, float *setpoint_B)												float *setpoint_C, float *setpoint_D)
 // {
 // 	if ()
 
