@@ -281,9 +281,6 @@ void master_task(void *arg)
  	motor_task_creator(&task_params_C, TASK_C_NAME, MOT_C_SEL, &master_task_motor_C_rcv_queue, &encoder_motor_C_rcv_queue);
  	motor_task_creator(&task_params_D, TASK_D_NAME, MOT_D_SEL, &master_task_motor_D_rcv_queue, &encoder_motor_D_rcv_queue);
 
-
-
-	// VER SI ESTO SE PUEDE METER EN LA FSM
  	master_task_motor_t motor_A_data =  {0};
  	master_task_motor_t motor_B_data =  {0};
  	master_task_motor_t motor_C_data =  {0};
@@ -291,9 +288,6 @@ void master_task(void *arg)
 
 	//LOGS
 	char log_buffer[MQTT_SEND_BUFFER];
-	char data[MQTT_RECV_BUFFER];
-	// memset(log_buffer, '0', strlen(log_buffer));
-	// send_log(mqtt_client, log_buffer, "info");
 
  	while(1)
  	{
@@ -376,10 +370,6 @@ void master_task(void *arg)
  				{
  					if(feedback_received.status == TASK_STATUS_IDLE)
 					{
-						memset(log_buffer, '0', strlen(log_buffer));
-						sprintf(log_buffer, "LLEGUE A TASK_STATUS_IDLE - MOTOR STOP!");
-						send_log(mqtt_client, log_buffer, "info");
-
  						// must stop all motors
  						if(!flag_stop_all_motors)
 						{
@@ -429,9 +419,6 @@ void master_task(void *arg)
 									}
 
 									state = ST_MT_CALC_RPM_COMP;
-									memset(log_buffer, '0', strlen(log_buffer));
-									sprintf(log_buffer, "ST_MT_CALC_RPM_COMP");
-									send_log(mqtt_client, log_buffer, "info");								
 								}
 
 								break;
@@ -562,7 +549,7 @@ void app_main(void)
     pcnt_initialize(pcnt_encoder_right, PCNT_INPUT_SIG_IO_B);
     pcnt_initialize(pcnt_encoder_front, PCNT_INPUT_SIG_IO_C);
     pcnt_initialize(pcnt_encoder_back, PCNT_INPUT_SIG_IO_D);
-    //pcnt_initialize(pcnt_linefllwr_middle_0, PNCT_INPUT_SENSOR_2);
+
     pcnt_initialize(pcnt_linefllwr_left, PNCT_INPUT_SENSOR_1);
     pcnt_initialize(pcnt_linefllwr_middle_0, PNCT_INPUT_SENSOR_3);
     pcnt_initialize(pcnt_linefllwr_middle_1, PNCT_INPUT_SENSOR_5);
@@ -660,9 +647,3 @@ void IRAM_ATTR isr_timer_handler(void *para)
     timer_spinlock_give(TIMER_GROUP_0);
     return;
 }
-
-// int update_setpoint(xQueueHandle *ReceiveQueue, float *setpoint_A, float *setpoint_B)												float *setpoint_C, float *setpoint_D)
-// {
-// 	if ()
-
-// }												
