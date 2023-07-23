@@ -120,7 +120,9 @@ int wifi_initialize_station(void)
 
     ESP_LOGI(TAG, "ESP_WIFI_MODE_STA");
     if (wifi_initialize_connection() != 0)
+    {
         return ESP_FAIL;
+    }
 
     return ESP_OK;
 }

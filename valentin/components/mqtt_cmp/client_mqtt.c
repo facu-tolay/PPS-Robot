@@ -6,7 +6,8 @@ esp_mqtt_client_handle_t mqtt_app_start(xQueueHandle* receive_queue)
 {
     esp_mqtt_client_config_t mqtt_cfg = {
         .host = BROKER_HOST,
-        .port = BROKER_PORT,
+        .port = BROKER_PORT
+        // FIXME ver como agregar checkeo/auth de usuarios
     };
 
     esp_mqtt_client_handle_t client = esp_mqtt_client_init(&mqtt_cfg);
@@ -14,7 +15,7 @@ esp_mqtt_client_handle_t mqtt_app_start(xQueueHandle* receive_queue)
     ESP_ERROR_CHECK(esp_mqtt_client_register_event(client, ESP_EVENT_ANY_ID, mqtt_event_handler, (void*)receive_queue));
     ESP_ERROR_CHECK(esp_mqtt_client_start(client));
 
-    master_task_mqtt_send_setpoint = master_task_mqtt_receive;
+    //master_task_mqtt_send_setpoint = master_task_mqtt_receive;
 
     return client;
 }
@@ -169,7 +170,7 @@ int receive_motor_parameters(const char* const data, motor_mqtt_params_t* motor_
     const cJSON *velocidad_angular = NULL;
     int status = 0;
 
-    ESP_LOGI(TAG_1, "ENTRE a receive");
+    ESP_LOGI(TAG_1, "ENTRE CON DATA <%s> # LENGTH %d", data, strlen(data));
 
     cJSON *data_json = cJSON_Parse(data);
     if (data_json == NULL)
