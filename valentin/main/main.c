@@ -25,9 +25,9 @@ xQueueHandle master_task_motor_B_rcv_queue;
 xQueueHandle master_task_motor_C_rcv_queue;
 xQueueHandle master_task_motor_D_rcv_queue;
 xQueueHandle line_follower_master_rcv_queue;
-xQueueHandle master_task_mqtt_receive_setpoint;
-xQueueHandle master_task_mqtt_receive_pid_values;
-xQueueHandle master_task_mqtt_receive_command;
+// xQueueHandle master_task_mqtt_receive_setpoint;
+// xQueueHandle master_task_mqtt_receive_pid_values;
+// xQueueHandle master_task_mqtt_receive_command;
 
 task_params_t task_params_A;
 task_params_t task_params_B;
@@ -38,6 +38,7 @@ task_params_t task_params_D;
 esp_mqtt_client_handle_t mqtt_client;
 
 int wifi_flag = 1;
+static const char *TAG = "master_task";
 
 void task_motor(void *arg)
 {
@@ -136,6 +137,7 @@ void task_motor(void *arg)
  					// notify rpm average to master task
  					master_feedback.average_rpm = calculate_average(rpm_buffer, RPM_BUFFER_SIZE);
  					xQueueSend(master_task_feedback, &master_feedback, 0);
+					// ESP_LOGI(TAG, "STATUS WORKING - MOTOR TASK: %s", task_params->task_name);
  				}
  			}
 
@@ -155,10 +157,11 @@ void task_motor(void *arg)
 
  					master_feedback.status = TASK_STATUS_IDLE;
  					master_feedback.average_rpm = 0;
+					// ESP_LOGI(TAG, "STATUS IDLE - MOTOR TASK: %s", task_params->task_name);
  					xQueueSend(master_task_feedback, &master_feedback, 0);
-					memset(log_buffer, '0', strlen(log_buffer));
-					sprintf(log_buffer, "<%s> LLEGUE A DESTINO!", task_params->task_name);
-					send_log();
+					// memset(log_buffer, '0', strlen(log_buffer));
+					// sprintf(log_buffer, "<%s> LLEGUE A DESTINO!", task_params->task_name);
+					// send_log();
  				}
 
  			}
@@ -198,22 +201,24 @@ void task_motor(void *arg)
 	 			memset(rpm_buffer, 0, sizeof(rpm_buffer));
 	 			rpm_index = 0;
 
-	 			if(evt_master_queue_rcv.setpoint == 0)
-	 			{
-	 				master_feedback.status = TASK_STATUS_IDLE;
-					// xQueueSend(master_task_feedback, &master_feedback, 0);
-					memset(log_buffer, '0', strlen(log_buffer));
-					sprintf(log_buffer, "<%s> IDLE FROM MASTER!", task_params->task_name);
-					//send_log(mqtt_client, log_buffer, "info");
-	 			}
-	 			else
-	 			{
+	 			if(evt_master_queue_rcv.setpoint != 0)
 	 				master_feedback.status = TASK_STATUS_WORKING;
-	 				// xQueueSend(master_task_feedback, &master_feedback, 0);
-					memset(log_buffer, '0', strlen(log_buffer));
-					sprintf(log_buffer, "<%s> SETPOINT UPDATED!", task_params->task_name);
+
+	 			// {
+	 				// master_feedback.status = TASK_STATUS_IDLE;
+					// xQueueSend(master_task_feedback, &master_feedback, 0);
+					// memset(log_buffer, '0', strlen(log_buffer));
+					// sprintf(log_buffer, "<%s> IDLE FROM MASTER!", task_params->task_name);
 					//send_log(mqtt_client, log_buffer, "info");
-	 			}
+	 			// }
+	 			// else
+	 			// {
+	 				// master_feedback.status = TASK_STATUS_WORKING;
+	 				// xQueueSend(master_task_feedback, &master_feedback, 0);
+					// memset(log_buffer, '0', strlen(log_buffer));
+					// sprintf(log_buffer, "<%s> SETPOINT UPDATED!", task_params->task_name);
+					//send_log(mqtt_client, log_buffer, "info");
+	 			// }
 			}
      	}
     }
@@ -257,7 +262,7 @@ void master_task(void *arg)
  			}
  	};
 
- 	uint8_t rpm_queue_size = 0;
+ 	uint8_t rpm_queue_size = 0, idle_queue_size = 0;
  	float rpm_average_array[MOTOR_TASK_COUNT] = {0};
  	rpm_queue_t rpm_queue[MOTOR_TASK_COUNT] = {
  			{
@@ -375,20 +380,33 @@ void master_task(void *arg)
  					if(feedback_received.status == TASK_STATUS_IDLE)
 					{
  						// must stop all motors
- 						if(!flag_stop_all_motors)
+						static int i = 0;
+						// if (i<MOTOR_TASK_COUNT)
+						i++;
+						// else
+						// ESP_LOGI(TAG, "NAME: %s CANT: %d", feedback_received.task_name, i);
+ 						if (i == MOTOR_TASK_COUNT)
 						{
-							motor_A_data.rpm = 0;
-							motor_A_data.setpoint = 0;
-							motor_B_data.rpm = 0;
-							motor_B_data.setpoint = 0;
-							motor_C_data.rpm = 0;
-							motor_C_data.setpoint = 0;
-							motor_D_data.rpm = 0;
-							motor_D_data.setpoint = 0;
+							ESP_LOGI(TAG, "idle_queue_size >= MOTOR_TASK_COUNT");
+							if(!flag_stop_all_motors)
+							{
+								motor_A_data.rpm = 0;
+								motor_A_data.setpoint = 0;
+								motor_B_data.rpm = 0;
+								motor_B_data.setpoint = 0;
+								motor_C_data.rpm = 0;
+								motor_C_data.setpoint = 0;
+								motor_D_data.rpm = 0;
+								motor_D_data.setpoint = 0;
 
-							flag_stop_all_motors = 1;
-							state = ST_MT_SEND_RPM_COMPENSATED;
+								flag_stop_all_motors = 1;
+								i = 0;
+								// state = ST_MT_SEND_RPM_COMPENSATED;
+								state = ST_MT_SEND_RPM_COMPENSATED;
+								break;
+							}
 						}
+						break;
 					}
  					else if(feedback_received.status == TASK_STATUS_WORKING)
  					{
@@ -397,7 +415,7 @@ void master_task(void *arg)
 							if(strcmp(feedback_received.task_name, tasks_status[i].task_name)==0)
 							{
 								tasks_status[i].status = feedback_received.status;
-
+								// ESP_LOGI(TAG, "STATUS WORKING: %s", tasks_status[i].task_name);
 								// allow only one element per motor per round
 								if(rpm_queue[i].busy == 0)
 								{
@@ -522,6 +540,7 @@ void master_task(void *arg)
 				{
 					flag_stop_all_motors = 0;
 					state = ST_MT_IDLE;
+					send_log();
 				}
 				else
 					state = ST_MT_GATHER_RPM;				
@@ -559,23 +578,23 @@ void app_main(void)
     pcnt_initialize(pcnt_linefllwr_middle_1, PNCT_INPUT_SENSOR_5);
 
     // initialize queues
-    master_task_feedback = xQueueCreate(10, sizeof(master_task_feedback_t));
+    master_task_feedback = xQueueCreate(12, sizeof(master_task_feedback_t));
     master_task_setpoint = xQueueCreate(1, sizeof(motor_mqtt_params_t));
 
-    encoder_motor_A_rcv_queue = xQueueCreate(10, sizeof(encoder_event_t));
-    encoder_motor_B_rcv_queue = xQueueCreate(10, sizeof(encoder_event_t));
-    encoder_motor_C_rcv_queue = xQueueCreate(10, sizeof(encoder_event_t));
-    encoder_motor_D_rcv_queue = xQueueCreate(10, sizeof(encoder_event_t));
+    encoder_motor_A_rcv_queue = xQueueCreate(16, sizeof(encoder_event_t));
+    encoder_motor_B_rcv_queue = xQueueCreate(16, sizeof(encoder_event_t));
+    encoder_motor_C_rcv_queue = xQueueCreate(16, sizeof(encoder_event_t));
+    encoder_motor_D_rcv_queue = xQueueCreate(16, sizeof(encoder_event_t));
 
-    master_task_motor_A_rcv_queue = xQueueCreate(10, sizeof(master_task_motor_t));
-    master_task_motor_B_rcv_queue = xQueueCreate(10, sizeof(master_task_motor_t));
-    master_task_motor_C_rcv_queue = xQueueCreate(10, sizeof(master_task_motor_t));
-    master_task_motor_D_rcv_queue = xQueueCreate(10, sizeof(master_task_motor_t));
+    master_task_motor_A_rcv_queue = xQueueCreate(1, sizeof(master_task_motor_t));
+    master_task_motor_B_rcv_queue = xQueueCreate(1, sizeof(master_task_motor_t));
+    master_task_motor_C_rcv_queue = xQueueCreate(1, sizeof(master_task_motor_t));
+    master_task_motor_D_rcv_queue = xQueueCreate(1, sizeof(master_task_motor_t));
 
-    line_follower_master_rcv_queue = xQueueCreate(10, sizeof(line_follower_event_t));
-    master_task_mqtt_receive_setpoint = xQueueCreate(10, sizeof(mqtt_receive_setpoint_t));
-    master_task_mqtt_receive_pid_values = xQueueCreate(10, sizeof(mqtt_receive_setpoint_t));
-    master_task_mqtt_receive_command = xQueueCreate(10, sizeof(mqtt_receive_setpoint_t));
+    line_follower_master_rcv_queue = xQueueCreate(1, sizeof(line_follower_event_t));
+    // master_task_mqtt_receive_setpoint = xQueueCreate(1, sizeof(mqtt_receive_setpoint_t));
+    // master_task_mqtt_receive_pid_values = xQueueCreate(1, sizeof(mqtt_receive_setpoint_t));
+    // master_task_mqtt_receive_command = xQueueCreate(1, sizeof(mqtt_receive_setpoint_t));
 
     timer_initialize(TIMER_1, TIMER_AUTORELOAD_EN, TIMER_INTERVAL_RPM_MEASURE, isr_timer_handler);
 
