@@ -158,7 +158,7 @@ void task_motor(void *arg)
  					xQueueSend(master_task_feedback, &master_feedback, 0);
 					memset(log_buffer, '0', strlen(log_buffer));
 					sprintf(log_buffer, "<%s> LLEGUE A DESTINO!", task_params->task_name);
-					send_log(mqtt_client, log_buffer, "info");
+					send_log();
  				}
 
  			}
@@ -409,7 +409,7 @@ void master_task(void *arg)
 								{
 									memset(log_buffer, '0', strlen(log_buffer));
 									sprintf(log_buffer, "<%s> tried to store RPM but busy", tasks_status[i].task_name);
-									send_log(mqtt_client, log_buffer, "info");
+									// send_log();
 								}
 
 								if(rpm_queue_size >= MOTOR_TASK_COUNT) // si llego al menos 1 mensaje de feedback desde cada task
@@ -486,7 +486,7 @@ void master_task(void *arg)
 				memset(log_buffer, '0', strlen(log_buffer));
 				sprintf(log_buffer, "%4.2f, %4.2f, %4.2f, %4.2f",
 						rpm_queue[0].rpm, rpm_queue[1].rpm, rpm_queue[2].rpm, rpm_queue[3].rpm);
-				send_log(mqtt_client, log_buffer, "info");
+				// send_log();
 
  				calculo_error_velocidades_lineales(velocidades_lineales, velocidades_lineales_reales, delta_velocidad_lineal);
  				calculo_matriz_cinematica_inversa(delta_velocidad_lineal, velocidad_angular_compensacion);
@@ -560,7 +560,7 @@ void app_main(void)
 
     // initialize queues
     master_task_feedback = xQueueCreate(10, sizeof(master_task_feedback_t));
-    master_task_setpoint = xQueueCreate(5, sizeof(motor_mqtt_params_t));
+    master_task_setpoint = xQueueCreate(1, sizeof(motor_mqtt_params_t));
 
     encoder_motor_A_rcv_queue = xQueueCreate(10, sizeof(encoder_event_t));
     encoder_motor_B_rcv_queue = xQueueCreate(10, sizeof(encoder_event_t));

@@ -29,7 +29,7 @@
 esp_mqtt_client_handle_t mqtt_app_start(xQueueHandle *ReceiveQueue);
 void mqtt_event_handler(void *handler_args, esp_event_base_t base, int32_t event_id, void *event_data);
 void log_error_if_nonzero(const char *message, int error_code);
-void send_log(esp_mqtt_client_handle_t client, char *log_buffer, char *topic);
+void send_log(void);
 void send_motor_parameters(xQueueHandle* receive_queue, motor_mqtt_params_t* motor_values);
 int receive_motor_parameters(const char* const data, motor_mqtt_params_t* motor_values);
 

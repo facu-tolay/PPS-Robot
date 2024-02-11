@@ -27,13 +27,15 @@ void mqtt_event_handler(void *handler_args, esp_event_base_t base, int32_t event
     xQueueHandle *receive_queue = (xQueueHandle*)handler_args;
     int msg_id;
     motor_mqtt_params_t motor_values = {0};
-    char topic_robot_id[20] = "/topic/ROB_C";
+    char topic_robot_id[20] = "/topic/v1/ROB_C";
 
     switch ((esp_mqtt_event_id_t)event_id)
     {
         case MQTT_EVENT_CONNECTED:
             ESP_LOGI(TAG_1, "MQTT_EVENT_CONNECTED");
-            if ((msg_id = esp_mqtt_client_subscribe(client, "/topic/robot", 0)) != ESP_FAIL)
+            if (esp_mqtt_client_publish(client, "/topic/robot", "/topic/ROB_C", 0, 0, 0) == -1)
+                ESP_LOGE(TAG_1, "error in enqueue msg");
+            if ((msg_id = esp_mqtt_client_subscribe(client, topic_robot_id, 0)) != ESP_FAIL)
                 ESP_LOGI(TAG_1, "sent subscribe successful, msg_id=%d", msg_id);
             break;
         case MQTT_EVENT_DISCONNECTED:
@@ -47,18 +49,16 @@ void mqtt_event_handler(void *handler_args, esp_event_base_t base, int32_t event
             break;
         case MQTT_EVENT_DATA:
             ESP_LOGI(TAG_1, "MQTT_EVENT_DATA");
-            static int connect_flag = 0;
+            // static int connect_flag = 0;
             // if (!(receive_motor_parameters(event->data, &motor_values)))
-            if (strcmp("/topic/robot", event->topic))
-            {
-                if (strcmp(topic_robot_id, event->data))
-                {
-                    if ((msg_id = esp_mqtt_client_subscribe(client, topic_robot_id, 0)) != ESP_FAIL)
-                        ESP_LOGI(TAG_1, "sent subscribe successful, msg_id=%d", msg_id);
-                    esp_mqtt_client_unsubscribe(client, "/topic/robot");
-                }
-            }
-            else if (strcmp(topic_robot_id, event->topic,))
+            // if (strcmp("/topic/robot", event->topic))
+            // {
+            //     if (strcmp(topic_robot_id, event->data))
+            //     {
+            //         esp_mqtt_client_unsubscribe(client, "/topic/robot");
+            //     }
+            // }
+            if (strcmp(topic_robot_id, event->topic))
             {
                 receive_motor_parameters(event->data, &motor_values);
                 send_motor_parameters(receive_queue, &motor_values);
@@ -163,7 +163,7 @@ void mqtt_event_handler(void *handler_args, esp_event_base_t base, int32_t event
 
 void send_log(void)
 {
-    if (esp_mqtt_client_publish(client, "/topic/info", "Bloqueado", 0, 0, 0) == -1)
+    if (esp_mqtt_client_publish(client, "/topic/ROB_C", "Bloqueado", 0, 0, 0) == -1)
         ESP_LOGE(TAG_1, "error in enqueue msg");
 }
 
@@ -173,7 +173,7 @@ void send_motor_parameters(xQueueHandle* receive_queue, motor_mqtt_params_t* mot
         ESP_LOGE(TAG_1, "error in send motor values");
 }
 
-int receive_motor_parameters(const char* const data, motor_mqtt_params_t* motor_values)
+int receive_motor_parameters(const char* data, motor_mqtt_params_t* motor_values)
 {
     const cJSON *setpoint = NULL;
     const cJSON *velocidad_lineal_x = NULL;
@@ -181,7 +181,7 @@ int receive_motor_parameters(const char* const data, motor_mqtt_params_t* motor_
     const cJSON *velocidad_angular = NULL;
     int status = 0;
 
-    ESP_LOGI(TAG_1, "ENTRE CON DATA <%s> # LENGTH %d", data, strlen(data));
+    // ESP_LOGI(TAG_1, "ENTRE CON DATA <%s> # LENGTH %d", data, strlen(data));
 
     cJSON *data_json = cJSON_Parse(data);
     if (data_json == NULL)
@@ -222,6 +222,6 @@ int receive_motor_parameters(const char* const data, motor_mqtt_params_t* motor_
 
 end:
     cJSON_Delete(data_json);
-    ESP_LOGI(TAG_1, "SALI a receive");
+    // ESP_LOGI(TAG_1, "SALI a receive");
     return status;
 }
