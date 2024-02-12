@@ -203,22 +203,8 @@ void task_motor(void *arg)
 
 	 			if(evt_master_queue_rcv.setpoint != 0)
 	 				master_feedback.status = TASK_STATUS_WORKING;
-
-	 			// {
-	 				// master_feedback.status = TASK_STATUS_IDLE;
-					// xQueueSend(master_task_feedback, &master_feedback, 0);
-					// memset(log_buffer, '0', strlen(log_buffer));
-					// sprintf(log_buffer, "<%s> IDLE FROM MASTER!", task_params->task_name);
-					//send_log(mqtt_client, log_buffer, "info");
-	 			// }
-	 			// else
-	 			// {
-	 				// master_feedback.status = TASK_STATUS_WORKING;
-	 				// xQueueSend(master_task_feedback, &master_feedback, 0);
-					// memset(log_buffer, '0', strlen(log_buffer));
-					// sprintf(log_buffer, "<%s> SETPOINT UPDATED!", task_params->task_name);
-					//send_log(mqtt_client, log_buffer, "info");
-	 			// }
+				else
+	 				master_feedback.status = TASK_STATUS_IDLE;
 			}
      	}
     }
@@ -262,7 +248,7 @@ void master_task(void *arg)
  			}
  	};
 
- 	uint8_t rpm_queue_size = 0, idle_queue_size = 0;
+ 	uint8_t rpm_queue_size = 0;
  	float rpm_average_array[MOTOR_TASK_COUNT] = {0};
  	rpm_queue_t rpm_queue[MOTOR_TASK_COUNT] = {
  			{
@@ -578,7 +564,7 @@ void app_main(void)
     pcnt_initialize(pcnt_linefllwr_middle_1, PNCT_INPUT_SENSOR_5);
 
     // initialize queues
-    master_task_feedback = xQueueCreate(12, sizeof(master_task_feedback_t));
+    master_task_feedback = xQueueCreate(16, sizeof(master_task_feedback_t));
     master_task_setpoint = xQueueCreate(1, sizeof(motor_mqtt_params_t));
 
     encoder_motor_A_rcv_queue = xQueueCreate(16, sizeof(encoder_event_t));

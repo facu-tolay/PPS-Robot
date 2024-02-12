@@ -1,7 +1,20 @@
-menu "User Configuration String"
-    config USER_NAME
-            string "user name"
-            default "Mark"
-            help
-                Type a user name that you want to use in the code
-    endmenu
+menu "Robot Settings"
+    config BROKER_HOST
+        string "MQTT broker hostname"
+        default "192.168.0.40"
+        help
+            Type the MQTT broker hostname.
+
+    config BROKER_PORT
+        int "MQTT broker port"
+        default 1883
+        help
+            Type the MQTT broker port.
+
+    config ROBOT_ID
+        string "Unique ID for the robot"
+        default "esp32_rob_c"
+        help
+            Type the robot id that you want to use.
+
+endmenu

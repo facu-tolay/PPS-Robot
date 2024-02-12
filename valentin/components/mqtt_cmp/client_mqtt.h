@@ -20,7 +20,6 @@
 
 #include "esp_log.h"
 #include "mqtt_client.h"
-#include "client_mqtt_cred.h"
 #include <cJSON.h>
 #include "../kinematics/kinematics.h"
 

@@ -1,13 +1,17 @@
 #include "client_mqtt.h"
 
-static const char *TAG_1 = "mqtt_client";
+static const char *TAG = "mqtt_client";
 esp_mqtt_client_handle_t client = NULL;
+char topic_robot_id[22] = {0};
 
 esp_mqtt_client_handle_t mqtt_app_start(xQueueHandle* receive_queue)
 {
     esp_mqtt_client_config_t mqtt_cfg = {
-        .host = BROKER_HOST,
-        .port = BROKER_PORT
+        .host = CONFIG_BROKER_HOST,
+        .port = CONFIG_BROKER_PORT,
+        .client_id = CONFIG_ROBOT_ID,
+        .keepalive = 20,
+        .disable_clean_session = true
         // FIXME ver como agregar checkeo/auth de usuarios
     };
 
@@ -15,40 +19,40 @@ esp_mqtt_client_handle_t mqtt_app_start(xQueueHandle* receive_queue)
     /* The last argument may be used to pass data to the event handler, in this example mqtt_event_handler */
     ESP_ERROR_CHECK(esp_mqtt_client_register_event(client, ESP_EVENT_ANY_ID, mqtt_event_handler, (void*)receive_queue));
     ESP_ERROR_CHECK(esp_mqtt_client_start(client));
+    sprintf(topic_robot_id, "/topic/v1/%s", CONFIG_ROBOT_ID);
 
     return client;
 }
 
 void mqtt_event_handler(void *handler_args, esp_event_base_t base, int32_t event_id, void *event_data)
 {
-    ESP_LOGD(TAG_1, "Event dispatched from event loop base=%s, event_id=%d", base, event_id);
+    ESP_LOGD(TAG, "Event dispatched from event loop base=%s, event_id=%d", base, event_id);
     esp_mqtt_event_handle_t event = event_data;
-    esp_mqtt_client_handle_t client = event->client;
+    // esp_mqtt_client_handle_t client = event->client;
     xQueueHandle *receive_queue = (xQueueHandle*)handler_args;
     int msg_id;
     motor_mqtt_params_t motor_values = {0};
-    char topic_robot_id[20] = "/topic/v1/ROB_C";
 
     switch ((esp_mqtt_event_id_t)event_id)
     {
         case MQTT_EVENT_CONNECTED:
-            ESP_LOGI(TAG_1, "MQTT_EVENT_CONNECTED");
+            ESP_LOGI(TAG, "MQTT_EVENT_CONNECTED");
             if (esp_mqtt_client_publish(client, "/topic/robot", "/topic/ROB_C", 0, 0, 0) == -1)
-                ESP_LOGE(TAG_1, "error in enqueue msg");
+                ESP_LOGE(TAG, "error in enqueue msg");
             if ((msg_id = esp_mqtt_client_subscribe(client, topic_robot_id, 0)) != ESP_FAIL)
-                ESP_LOGI(TAG_1, "sent subscribe successful, msg_id=%d", msg_id);
+                ESP_LOGI(TAG, "sent subscribe successful, msg_id=%d", msg_id);
             break;
         case MQTT_EVENT_DISCONNECTED:
-            ESP_LOGI(TAG_1, "MQTT_EVENT_DISCONNECTED");
+            ESP_LOGI(TAG, "MQTT_EVENT_DISCONNECTED");
             break;
         case MQTT_EVENT_PUBLISHED:
-            ESP_LOGI(TAG_1, "MQTT_EVENT_PUBLISHED, msg_id=%d", event->msg_id);
+            ESP_LOGI(TAG, "MQTT_EVENT_PUBLISHED, msg_id=%d", event->msg_id);
             break;
         case MQTT_EVENT_SUBSCRIBED:
-            ESP_LOGI(TAG_1, "MQTT_EVENT_SUBSCRIBED, msg_id=%d", event->msg_id);
+            ESP_LOGI(TAG, "MQTT_EVENT_SUBSCRIBED, msg_id=%d", event->msg_id);
             break;
         case MQTT_EVENT_DATA:
-            ESP_LOGI(TAG_1, "MQTT_EVENT_DATA");
+            ESP_LOGI(TAG, "MQTT_EVENT_DATA");
             // static int connect_flag = 0;
             // if (!(receive_motor_parameters(event->data, &motor_values)))
             // if (strcmp("/topic/robot", event->topic))
@@ -66,7 +70,7 @@ void mqtt_event_handler(void *handler_args, esp_event_base_t base, int32_t event
             break;
         // case MQTT_EVENT_DATA:
         // {
-		// 	ESP_LOGI(TAG_1, "MQTT_EVENT_DATA");
+		// 	ESP_LOGI(TAG, "MQTT_EVENT_DATA");
 		// 	char *command;
 		// 	char *payload;
 
@@ -156,7 +160,7 @@ void mqtt_event_handler(void *handler_args, esp_event_base_t base, int32_t event
         // }
 
         default:
-            ESP_LOGI(TAG_1, "Other event id:%d", event->event_id);
+            ESP_LOGI(TAG, "Other event id:%d", event->event_id);
             break;
     }
 }
@@ -164,13 +168,13 @@ void mqtt_event_handler(void *handler_args, esp_event_base_t base, int32_t event
 void send_log(void)
 {
     if (esp_mqtt_client_publish(client, "/topic/ROB_C", "Bloqueado", 0, 0, 0) == -1)
-        ESP_LOGE(TAG_1, "error in enqueue msg");
+        ESP_LOGE(TAG, "error in enqueue msg");
 }
 
 void send_motor_parameters(xQueueHandle* receive_queue, motor_mqtt_params_t* motor_values)
 {
     if (xQueueSend(*receive_queue, (void*)motor_values, 0) != pdTRUE)
-        ESP_LOGE(TAG_1, "error in send motor values");
+        ESP_LOGE(TAG, "error in send motor values");
 }
 
 int receive_motor_parameters(const char* data, motor_mqtt_params_t* motor_values)
@@ -181,7 +185,7 @@ int receive_motor_parameters(const char* data, motor_mqtt_params_t* motor_values
     const cJSON *velocidad_angular = NULL;
     int status = 0;
 
-    // ESP_LOGI(TAG_1, "ENTRE CON DATA <%s> # LENGTH %d", data, strlen(data));
+    // ESP_LOGI(TAG, "ENTRE CON DATA <%s> # LENGTH %d", data, strlen(data));
 
     cJSON *data_json = cJSON_Parse(data);
     if (data_json == NULL)
@@ -222,6 +226,6 @@ int receive_motor_parameters(const char* data, motor_mqtt_params_t* motor_values
 
 end:
     cJSON_Delete(data_json);
-    // ESP_LOGI(TAG_1, "SALI a receive");
+    // ESP_LOGI(TAG, "SALI a receive");
     return status;
 }
