@@ -316,7 +316,7 @@ void master_task(void *arg)
  				vTaskDelay(50);
  				gpio_set_level(GPIO_ENABLE_MOTORS, 1);
 
-				if (wifi_flag == 0)
+				if (wifi_flag == ESP_OK)
 				{
  					state = ST_MT_IDLE;
 					break;

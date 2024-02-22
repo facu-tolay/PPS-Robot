@@ -20,10 +20,12 @@
 
 #include "esp_log.h"
 #include "mqtt_client.h"
+// #include "client_mqtt_cred.h"
 #include <cJSON.h>
 #include "../kinematics/kinematics.h"
 
 #define MQQT_DATA_LEN    72
+#define MQQT_TOPIC_LEN   25
 
 esp_mqtt_client_handle_t mqtt_app_start(xQueueHandle *ReceiveQueue);
 void mqtt_event_handler(void *handler_args, esp_event_base_t base, int32_t event_id, void *event_data);
