@@ -1,4 +1,14 @@
 menu "Robot Settings"
+    config WIFI_SSID
+        string "Wifi network name"
+        default ""
+        help
+            Type the Wifi network SSID.
+    config WIFI_PASS
+        string "Wifi network password"
+        default ""
+        help
+            Type the Wifi network password.
     config BROKER_HOST
         string "MQTT broker hostname"
         default "192.168.0.40"
@@ -13,7 +23,7 @@ menu "Robot Settings"
 
     config ROBOT_ID
         string "Unique ID for the robot"
-        default "esp32_rob_c"
+        default "ROB_C"
         help
             Type the robot id that you want to use.
 
