@@ -2,9 +2,7 @@
 
 /* FreeRTOS event group to signal when we are connected*/
 static EventGroupHandle_t s_wifi_event_group;
-
 static const char *TAG = "wifi station";
-
 static int s_retry_num = 0;
 
 void event_handler(void* arg, esp_event_base_t event_base, int32_t event_id, void* event_data)
@@ -24,8 +22,8 @@ void event_handler(void* arg, esp_event_base_t event_base, int32_t event_id, voi
         else
         {
             xEventGroupSetBits(s_wifi_event_group, WIFI_FAIL_BIT);
+            ESP_LOGE(TAG,"connect to the AP fail");
         }
-        ESP_LOGI(TAG,"connect to the AP fail");
     } 
     else if (event_base == IP_EVENT && event_id == IP_EVENT_STA_GOT_IP)
     {
@@ -54,8 +52,8 @@ int wifi_initialize_connection(void)
 
     wifi_config_t wifi_config = {
         .sta = {
-            .ssid = WIFI_SSID,
-            .password = WIFI_PASS,
+            .ssid = CONFIG_WIFI_SSID,
+            .password = CONFIG_WIFI_PASS,
             /* Setting a password implies station will connect to all security modes including WEP/WPA.
              * However these modes are deprecated and not advisable to be used. Incase your Access point
              * doesn't support WPA2, these mode can be enabled by commenting below line */
@@ -86,12 +84,12 @@ int wifi_initialize_connection(void)
      * happened. */
     if (bits & WIFI_CONNECTED_BIT)
     {
-        ESP_LOGI(TAG, "connected to ap SSID:%s", WIFI_SSID);
+        ESP_LOGI(TAG, "connected to ap SSID:%s", CONFIG_WIFI_SSID);
         return_value = ESP_OK;
     }
     else if (bits & WIFI_FAIL_BIT)
     {
-        ESP_LOGI(TAG, "Failed to connect to SSID:%s", WIFI_SSID);
+        ESP_LOGI(TAG, "Failed to connect to SSID:%s", CONFIG_WIFI_SSID);
         return_value = ESP_FAIL;
     }
     else

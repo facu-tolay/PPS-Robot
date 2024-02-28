@@ -18,9 +18,8 @@
 
 #include "lwip/err.h"
 #include "lwip/sys.h"
-#include "wifi_cred.h"
 
-#define MAXIMUM_RETRY  3
+#define MAXIMUM_RETRY  5
 
 /* The event group allows multiple bits for each event, but we only care about two events:
  * - we are connected to the AP with an IP

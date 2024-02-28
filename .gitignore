@@ -60,7 +60,9 @@ client_mqtt_cred.h
 *.pdf
 build
 LICENSE
-sdkconfig
+sdkconfig*
 .vscode
 *.csv*
 *.ods*
+.cproject
+.project
