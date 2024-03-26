@@ -27,12 +27,13 @@
 #define MQQT_DATA_LEN    72
 #define MQQT_TOPIC_LEN   25
 
-esp_mqtt_client_handle_t mqtt_app_start(xQueueHandle *ReceiveQueue);
+#define CONFIG_ROBOT_IDD "ROB_A"
+
+esp_mqtt_client_handle_t mqtt_app_start(xQueueHandle *receive_queue);
 void mqtt_event_handler(void *handler_args, esp_event_base_t base, int32_t event_id, void *event_data);
-void log_error_if_nonzero(const char *message, int error_code);
-void send_log(void);
-void send_motor_parameters(xQueueHandle* receive_queue, movement_vector_t* motor_values);
-int receive_motor_parameters(const char* const data, movement_vector_t* motor_values);
+void send_log();
+void forward_robot_feedback(xQueueHandle *receive_queue, movement_vector_t *motor_values);
+int process_robot_feedback(const char *data, movement_vector_t *motor_values);
 
 
 

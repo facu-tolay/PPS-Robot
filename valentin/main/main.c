@@ -202,7 +202,7 @@ void task_motor(void *arg)
             }
         }
     }
- }
+}
 
 void master_task(void *arg)
  {
@@ -490,7 +490,6 @@ void master_task(void *arg)
                 {
                     flag_stop_all_motors = 0;
                     state = ST_MT_IDLE;
-                    send_log();
                 }
                 else
                 {
@@ -505,7 +504,7 @@ void master_task(void *arg)
             }
         }
     }
- }
+}
 
 void app_main(void)
 {
