@@ -25,28 +25,28 @@
 #define INCLUDE_vTaskDelay 1
 
 // TASKS defines
-#define MOTOR_TASK_COUNT	4
+#define MOTOR_TASK_COUNT    4
 
-#define TASK_A_NAME			"T_A"
-#define TASK_B_NAME			"T_B"
-#define TASK_C_NAME			"T_C"
-#define TASK_D_NAME			"T_D"
+#define TASK_A_NAME         "T_A"
+#define TASK_B_NAME         "T_B"
+#define TASK_C_NAME         "T_C"
+#define TASK_D_NAME         "T_D"
 
-#define TASK_STATUS_IDLE 	0
+#define TASK_STATUS_IDLE    0
 #define TASK_STATUS_WORKING 1
-#define TASK_STATUS_ERROR	255
+#define TASK_STATUS_ERROR   255
 
 // MASTER TASK states defines
-#define ST_MT_INIT					0
-#define ST_MT_IDLE					1
-#define ST_MT_GATHER_RPM			2
-#define ST_MT_CALC_RPM_COMP			3
-#define ST_MT_SEND_RPM_COMPENSATED	4
-#define ST_MT_DESCANSO				5
+#define ST_MT_INIT                  0
+#define ST_MT_IDLE                  1
+#define ST_MT_GATHER_RPM            2
+#define ST_MT_CALC_RPM_COMP         3
+#define ST_MT_SEND_RPM_COMPENSATED  4
+#define ST_MT_DESCANSO              5
 
 // MQTT defines
-#define MQTT_SEND_BUFFER 	192
-#define MQTT_RECV_BUFFER 	64
+#define MQTT_SEND_BUFFER    192
+#define MQTT_RECV_BUFFER    64
 
 /*
  * For providing working params/resources
@@ -55,8 +55,8 @@
  * */
 typedef struct {
     uint8_t assigned_motor;
-	xQueueHandle *rpm_count_rcv_queue;
-	xQueueHandle *master_queue_rcv;
+    xQueueHandle *rpm_count_rcv_queue;
+    xQueueHandle *master_queue_rcv;
     char *task_name;
 } task_params_t;
 
@@ -65,40 +65,40 @@ typedef struct {
  * the feedback queue
  * */
 typedef struct {
-	uint8_t status;
-	float average_rpm;
-	char *task_name;
+    uint8_t status;
+    float average_rpm;
+    char *task_name;
 } master_task_feedback_t;
 
 /*
  * For receiving interrupt events - ENCODERS
  * */
 typedef struct {
-	int16_t pulses_count;
+    int16_t pulses_count;
 } encoder_event_t;
 
 /*
  * For receiving interrupt events - HALL SENSORS
  * */
 typedef struct {
-	int16_t hall_sensor_count[4];
+    int16_t hall_sensor_count[4];
 } line_follower_event_t;
 
 /*
  * For the RPM queue to calculate inverse Jacobian
  * */
 typedef struct {
-	float rpm;
-	uint8_t busy;
+    float rpm;
+    uint8_t busy;
 } rpm_queue_t;
 
 /*
  * For storing motor tasks status
  * */
 typedef struct {
-	uint8_t status;
-	uint8_t motor_direction;
-	char *task_name;
+    uint8_t status;
+    uint8_t motor_direction;
+    char *task_name;
 } motor_task_status_t;
 
 // function prototypes

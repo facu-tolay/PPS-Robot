@@ -3,7 +3,7 @@
 static const char *TAG = "mqtt_client";
 esp_mqtt_client_handle_t client = NULL;
 char topic_robot_id[MQQT_TOPIC_LEN] = {0};
-char topic_robot_road[MQQT_TOPIC_LEN] = {0};
+char topic_receive_setpoint[MQQT_TOPIC_LEN] = {0};
 char topic_robot_ok[MQQT_TOPIC_LEN] = {0};
 
 esp_mqtt_client_handle_t mqtt_app_start(xQueueHandle* receive_queue)
@@ -24,7 +24,7 @@ esp_mqtt_client_handle_t mqtt_app_start(xQueueHandle* receive_queue)
     ESP_ERROR_CHECK(esp_mqtt_client_register_event(client, ESP_EVENT_ANY_ID, mqtt_event_handler, (void*)receive_queue));
     ESP_ERROR_CHECK(esp_mqtt_client_start(client));
     sprintf(topic_robot_id, "/topic/%s", mqtt_cfg.client_id);
-    sprintf(topic_robot_road, "/topic/v1/%s", mqtt_cfg.client_id);
+    sprintf(topic_receive_setpoint, "/topic/setpoint/%s", mqtt_cfg.client_id);
     sprintf(topic_robot_ok, "/topic/live/%s", mqtt_cfg.client_id);
 
     return client;
@@ -35,7 +35,7 @@ void mqtt_event_handler(void *handler_args, esp_event_base_t base, int32_t event
     ESP_LOGI(TAG, "Event dispatched from event loop base=%s, event_id=%d", base, event_id);
     xQueueHandle *receive_queue = (xQueueHandle*)handler_args;
     esp_mqtt_event_handle_t event = event_data;
-    motor_mqtt_params_t motor_values = {0};
+    movement_vector_t motor_values = {0};
     int msg_id = 0;
 
     switch ((esp_mqtt_event_id_t)event_id)
@@ -43,9 +43,13 @@ void mqtt_event_handler(void *handler_args, esp_event_base_t base, int32_t event
         case MQTT_EVENT_CONNECTED:
             ESP_LOGI(TAG, "MQTT_EVENT_CONNECTED");
             if ((msg_id = esp_mqtt_client_publish(client, topic_robot_id, CONFIG_ROBOT_ID, 0, 0, 0)) == ESP_FAIL)
+            {
                 ESP_LOGE(TAG, "error in enqueue msg, msg_id=%d", msg_id);
-            if ((msg_id = esp_mqtt_client_subscribe(client, topic_robot_road, 0)) == ESP_FAIL)
+            }
+            if ((msg_id = esp_mqtt_client_subscribe(client, topic_receive_setpoint, 0)) == ESP_FAIL)
+            {
                 ESP_LOGE(TAG, "error in subscribe topic, msg_id=%d", msg_id);
+            }
             break;
         case MQTT_EVENT_DISCONNECTED:
             ESP_LOGI(TAG, "MQTT_EVENT_DISCONNECTED");
@@ -58,10 +62,12 @@ void mqtt_event_handler(void *handler_args, esp_event_base_t base, int32_t event
             break;
         case MQTT_EVENT_DATA:
             ESP_LOGI(TAG, "MQTT_EVENT_DATA");
-            if (strcmp(topic_robot_road, event->topic))
+            if (strcmp(topic_receive_setpoint, event->topic))
             {
                 if (receive_motor_parameters(event->data, &motor_values) == ESP_OK)
+                {
                     send_motor_parameters(receive_queue, &motor_values);
+                }
             }
             break;
         default:
@@ -73,16 +79,20 @@ void mqtt_event_handler(void *handler_args, esp_event_base_t base, int32_t event
 void send_log(void)
 {
     if (esp_mqtt_client_publish(client, topic_robot_ok, "OK", 0, 0, 0) == ESP_FAIL)
+    {
         ESP_LOGE(TAG, "error in enqueue msg");
+    }
 }
 
-void send_motor_parameters(xQueueHandle* receive_queue, motor_mqtt_params_t* motor_values)
+void send_motor_parameters(xQueueHandle* receive_queue, movement_vector_t* motor_values)
 {
     if (xQueueSend(*receive_queue, (void*)motor_values, 0) != pdTRUE)
+    {
         ESP_LOGE(TAG, "error in send motor values");
+    }
 }
 
-int receive_motor_parameters(const char* data, motor_mqtt_params_t* motor_values)
+int receive_motor_parameters(const char* data, movement_vector_t* motor_values)
 {
     const cJSON *setpoint = NULL;
     const cJSON *velocidad_lineal_x = NULL;
@@ -94,31 +104,41 @@ int receive_motor_parameters(const char* data, motor_mqtt_params_t* motor_values
     if (data_json == NULL)
     {
         const char *error_ptr = cJSON_GetErrorPtr();
-        if (error_ptr != NULL)
+        //if (error_ptr != NULL)
+        {
             ESP_LOGE(TAG, "error in obtain velocities, error=%s", error_ptr);
+        }
         status = ESP_FAIL;
         goto end;
     }
 
-    setpoint = cJSON_GetObjectItemCaseSensitive(data_json, "setpoint");
+    setpoint = cJSON_GetObjectItemCaseSensitive(data_json, "distance");
     if (cJSON_IsNumber(setpoint))
+    {
         motor_values->setpoint = setpoint->valuedouble;
+    }
 
-    velocidad_lineal_x = cJSON_GetObjectItemCaseSensitive(data_json, "vel_x");
+    velocidad_lineal_x = cJSON_GetObjectItemCaseSensitive(data_json, "vx");
     if (cJSON_IsNumber(velocidad_lineal_x))
+    {
         motor_values->velocidad_lineal_x = velocidad_lineal_x->valuedouble;
+    }
 
-    velocidad_lineal_y = cJSON_GetObjectItemCaseSensitive(data_json, "vel_y");
+    velocidad_lineal_y = cJSON_GetObjectItemCaseSensitive(data_json, "vy");
     if (cJSON_IsNumber(velocidad_lineal_y))
+    {
         motor_values->velocidad_lineal_y = velocidad_lineal_y->valuedouble;
+    }
 
-    velocidad_angular = cJSON_GetObjectItemCaseSensitive(data_json, "vel_ang");
+    velocidad_angular = cJSON_GetObjectItemCaseSensitive(data_json, "vr");
     if (cJSON_IsNumber(velocidad_angular))
+    {
         motor_values->velocidad_angular = velocidad_angular->valuedouble;
+    }
 
-end:
-    cJSON_Delete(data_json);
-    return status;
+    end:
+        cJSON_Delete(data_json);
+        return status;
 }
 
         // case MQTT_EVENT_DATA:
