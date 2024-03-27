@@ -276,7 +276,7 @@ void master_task(void *arg)
 
     while(1)
     {
-        vTaskDelay(1);
+        vTaskDelay(500 / portTICK_PERIOD_MS);
 
         // receive line follower pulses
         if(xQueueReceive(line_follower_master_rcv_queue, &line_follower_received, 0) == pdTRUE)
@@ -296,6 +296,8 @@ void master_task(void *arg)
                 line_follower_count[i] += line_follower_received.hall_sensor_count[i];
             }
         }
+
+        send_log();
 
         switch(state)
         {

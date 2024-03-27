@@ -76,6 +76,25 @@ void mqtt_event_handler(void *handler_args, esp_event_base_t base, int32_t event
                 break;
             }
 
+            case MQTT_EVENT_UNSUBSCRIBED:
+            {
+                ESP_LOGI(TAG, "MQTT_CLIENT <unsubscribed>");
+                break;
+            }
+
+            case MQTT_EVENT_ERROR:
+            {
+                ESP_LOGI(TAG, "MQTT_CLIENT <error>");
+                if (event->error_handle->error_type == MQTT_ERROR_TYPE_TCP_TRANSPORT)
+                {
+                    if (event->error_handle->esp_tls_last_esp_err != 0) {ESP_LOGE(TAG, "Last error <reported from esp-tls: 0x%x>", event->error_handle->esp_tls_last_esp_err);}
+                    if (event->error_handle->esp_tls_stack_err != 0) {ESP_LOGE(TAG, "Last error <reported from tls stack: 0x%x>", event->error_handle->esp_tls_stack_err);}
+                    if (event->error_handle->esp_transport_sock_errno != 0) {ESP_LOGE(TAG, "Last error <captured as transport's socket errno: 0x%x>", event->error_handle->esp_transport_sock_errno);}
+                    ESP_LOGI(TAG, "Last errno string (%s)", strerror(event->error_handle->esp_transport_sock_errno));
+                }
+                break;
+            }
+
             case MQTT_EVENT_DATA:
             {
                 ESP_LOGI(TAG, "MQTT_CLIENT <data>");
@@ -99,7 +118,7 @@ void mqtt_event_handler(void *handler_args, esp_event_base_t base, int32_t event
 
 void send_log(void)
 {
-    if (esp_mqtt_client_publish(client, topic_robot_feedback, "OK", 0, 0, 0) == ESP_FAIL)
+    if (esp_mqtt_client_publish(client, topic_robot_register_id, "OK", 0, 0, 0) == ESP_FAIL)
     {
         ESP_LOGE(TAG, "error in enqueue msg");
     }
