@@ -72,7 +72,7 @@ void mqtt_event_handler(void *handler_args, esp_event_base_t base, int32_t event
 
             case MQTT_EVENT_SUBSCRIBED:
             {
-                ESP_LOGI(TAG, "MQTT_CLIENT <subscribed> to topic=%s", event->topic);
+                ESP_LOGI(TAG, "MQTT_CLIENT <subscribed>");
                 break;
             }
 
@@ -103,6 +103,10 @@ void mqtt_event_handler(void *handler_args, esp_event_base_t base, int32_t event
                     if (process_robot_feedback(event->data, &motor_values) == ESP_OK)
                     {
                         forward_robot_feedback(receive_queue, &motor_values);
+                    }
+                    else
+                    {
+                        ESP_LOGW(TAG, "MQTT_CLIENT invalid new setpoint data");
                     }
                 }
                 break;
@@ -139,8 +143,9 @@ int process_robot_feedback(const char *data, movement_vector_t *motor_values)
     const cJSON *velocidad_lineal_y = NULL;
     const cJSON *velocidad_angular = NULL;
     int status = ESP_OK;
+    cJSON *data_json;
 
-    cJSON *data_json = cJSON_Parse(data);
+    data_json = cJSON_Parse(data);
     if (data_json == NULL)
     {
         const char *error_ptr = cJSON_GetErrorPtr();
@@ -152,29 +157,39 @@ int process_robot_feedback(const char *data, movement_vector_t *motor_values)
         goto end;
     }
 
+    ESP_LOGI(TAG, "MQTT_CLIENT processing feedback");
+
     setpoint = cJSON_GetObjectItemCaseSensitive(data_json, "distance");
-    if (cJSON_IsNumber(setpoint))
+    if (!cJSON_IsNumber(setpoint))
     {
-        motor_values->setpoint = setpoint->valuedouble;
+        status = ESP_FAIL;
+        goto end;
     }
+    motor_values->setpoint = setpoint->valuedouble;
 
     velocidad_lineal_x = cJSON_GetObjectItemCaseSensitive(data_json, "vx");
-    if (cJSON_IsNumber(velocidad_lineal_x))
+    if (!cJSON_IsNumber(velocidad_lineal_x))
     {
-        motor_values->velocidad_lineal_x = velocidad_lineal_x->valuedouble;
+        status = ESP_FAIL;
+        goto end;
     }
+    motor_values->velocidad_lineal_x = velocidad_lineal_x->valuedouble;
 
     velocidad_lineal_y = cJSON_GetObjectItemCaseSensitive(data_json, "vy");
-    if (cJSON_IsNumber(velocidad_lineal_y))
+    if (!cJSON_IsNumber(velocidad_lineal_y))
     {
-        motor_values->velocidad_lineal_y = velocidad_lineal_y->valuedouble;
+        status = ESP_FAIL;
+        goto end;
     }
+    motor_values->velocidad_lineal_y = velocidad_lineal_y->valuedouble;
 
     velocidad_angular = cJSON_GetObjectItemCaseSensitive(data_json, "vr");
-    if (cJSON_IsNumber(velocidad_angular))
+    if (!cJSON_IsNumber(velocidad_angular))
     {
-        motor_values->velocidad_angular = velocidad_angular->valuedouble;
+        status = ESP_FAIL;
+        goto end;
     }
+    motor_values->velocidad_angular = velocidad_angular->valuedouble;
 
     end:
         cJSON_Delete(data_json);
