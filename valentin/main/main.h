@@ -67,6 +67,7 @@ typedef struct {
 typedef struct {
     uint8_t status;
     float average_rpm;
+    float distance;
     char *task_name;
 } master_task_feedback_t;
 
@@ -89,6 +90,7 @@ typedef struct {
  * */
 typedef struct {
     float rpm;
+    float distance;
     uint8_t busy;
 } rpm_queue_t;
 

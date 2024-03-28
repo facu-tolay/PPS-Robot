@@ -44,6 +44,7 @@ void task_motor(void *arg)
     master_task_feedback_t master_feedback = {
         .status = TASK_STATUS_IDLE,
         .average_rpm = 0,
+        .distance = 0,
         .task_name = task_params->task_name
     };
 
@@ -132,6 +133,7 @@ void task_motor(void *arg)
 
                     // notify rpm average to master task
                     master_feedback.average_rpm = calculate_average(rpm_buffer, RPM_BUFFER_SIZE);
+                    master_feedback.distance = count_sum * DELTA_DISTANCE_PER_SLIT;
                     xQueueSend(master_task_feedback, &master_feedback, 0);
                     // ESP_LOGI(TAG, "STATUS WORKING - MOTOR TASK: %s", task_params->task_name);
                 }
@@ -152,6 +154,7 @@ void task_motor(void *arg)
                     desired_rpm = 0;
                     master_feedback.status = TASK_STATUS_IDLE;
                     master_feedback.average_rpm = 0;
+                    master_feedback.distance = 0;
                     xQueueSend(master_task_feedback, &master_feedback, 0);
                 }
 
@@ -206,12 +209,13 @@ void task_motor(void *arg)
 
 void master_task(void *arg)
  {
-    float velocidades_lineales[3] = {0};
-    float velocidades_lineales_reales[3] = {0};
-    float delta_velocidad_lineal[3] = {0};
-    float velocidades_angulares_motores[MOTOR_TASK_COUNT] = {0};
-    float velocidad_angular_compensacion[MOTOR_TASK_COUNT] = {0};
-    float velocidad_angular_compensada[MOTOR_TASK_COUNT] = {0};
+    float velocidades_lineales[VELOCITY_VECTOR_SIZE]        = {0};
+    float velocidades_lineales_reales[VELOCITY_VECTOR_SIZE] = {0};
+    float delta_velocidad_lineal[VELOCITY_VECTOR_SIZE]      = {0};
+    float average_distance                                  = 0;
+    float velocidades_angulares_motores[MOTOR_TASK_COUNT]   = {0};
+    float velocidad_angular_compensacion[MOTOR_TASK_COUNT]  = {0};
+    float velocidad_angular_compensada[MOTOR_TASK_COUNT]    = {0};
 
     uint8_t state = ST_MT_INIT;
     uint8_t flag_stop_all_motors = 0;
@@ -296,8 +300,6 @@ void master_task(void *arg)
                 line_follower_count[i] += line_follower_received.hall_sensor_count[i];
             }
         }
-
-        send_log();
 
         switch(state)
         {
@@ -392,6 +394,7 @@ void master_task(void *arg)
                                     rpm_queue_size++;
                                     rpm_queue[i].busy = 1;
                                     rpm_queue[i].rpm = feedback_received.average_rpm;
+                                    rpm_queue[i].distance = feedback_received.distance;
 
                                     if(rpm_queue_size >= MOTOR_TASK_COUNT) // si llego al menos 1 mensaje de feedback desde cada task
                                     {
@@ -487,6 +490,14 @@ void master_task(void *arg)
                 xQueueSend(master_task_motor_B_rcv_queue, &motor_B_data, 0);
                 xQueueSend(master_task_motor_C_rcv_queue, &motor_C_data, 0);
                 xQueueSend(master_task_motor_D_rcv_queue, &motor_D_data, 0);
+
+                average_distance = 0;
+                for(int i=0; i<MOTOR_TASK_COUNT; i++)
+                {
+                    average_distance += rpm_queue[i].distance;
+                }
+                average_distance = average_distance / MOTOR_TASK_COUNT;
+                send_mqtt_feedback(velocidades_lineales_reales, average_distance);
 
                 if (flag_stop_all_motors)
                 {

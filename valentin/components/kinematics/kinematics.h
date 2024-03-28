@@ -23,6 +23,8 @@ typedef struct {
 } movement_vector_t;
 #pragma pack(pop)
 
+#define VELOCITY_VECTOR_SIZE    3
+
 /*
  * For sending new setpoints to motor tasks
  * */
