@@ -37,13 +37,13 @@ void mqtt_event_handler(void *handler_args, esp_event_base_t base, int32_t event
     movement_vector_t motor_values = {0};
     int msg_id = 0;
 
-    ESP_LOGI(TAG, "Event dispatched from event loop base=%s, event_id=%d", base, event_id);
+    //ESP_LOGI(TAG, "Event dispatched from event loop base=%s, event_id=%d", base, event_id);
 
     switch ((esp_mqtt_event_id_t)event_id)
     {
             case MQTT_EVENT_CONNECTED:
             {
-                ESP_LOGI(TAG, "MQTT_CLIENT <connected>");
+                //ESP_LOGI(TAG, "MQTT_CLIENT <connected>");
                 if ((msg_id = esp_mqtt_client_publish(client, topic_robot_register_id, CONFIG_ROBOT_IDD, 0, 0, 0)) == ESP_FAIL)
                 {
                     ESP_LOGE(TAG, "error in enqueue msg, msg_id=%d", msg_id);
@@ -66,7 +66,7 @@ void mqtt_event_handler(void *handler_args, esp_event_base_t base, int32_t event
 
             case MQTT_EVENT_PUBLISHED:
             {
-                ESP_LOGI(TAG, "MQTT_CLIENT <published> msg_id=%d", event->msg_id);
+                //ESP_LOGI(TAG, "MQTT_CLIENT <published> msg_id=%d", event->msg_id);
                 break;
             }
 
@@ -84,20 +84,20 @@ void mqtt_event_handler(void *handler_args, esp_event_base_t base, int32_t event
 
             case MQTT_EVENT_ERROR:
             {
-                ESP_LOGI(TAG, "MQTT_CLIENT <error>");
+                //ESP_LOGI(TAG, "MQTT_CLIENT <error>");
                 if (event->error_handle->error_type == MQTT_ERROR_TYPE_TCP_TRANSPORT)
                 {
                     if (event->error_handle->esp_tls_last_esp_err != 0) {ESP_LOGE(TAG, "Last error <reported from esp-tls: 0x%x>", event->error_handle->esp_tls_last_esp_err);}
                     if (event->error_handle->esp_tls_stack_err != 0) {ESP_LOGE(TAG, "Last error <reported from tls stack: 0x%x>", event->error_handle->esp_tls_stack_err);}
                     if (event->error_handle->esp_transport_sock_errno != 0) {ESP_LOGE(TAG, "Last error <captured as transport's socket errno: 0x%x>", event->error_handle->esp_transport_sock_errno);}
-                    ESP_LOGI(TAG, "Last errno string (%s)", strerror(event->error_handle->esp_transport_sock_errno));
+                    //ESP_LOGI(TAG, "Last errno string (%s)", strerror(event->error_handle->esp_transport_sock_errno));
                 }
                 break;
             }
 
             case MQTT_EVENT_DATA:
             {
-                ESP_LOGI(TAG, "MQTT_CLIENT <data>");
+                //ESP_LOGI(TAG, "MQTT_CLIENT <data>");
                 if (strcmp(topic_receive_setpoint, event->topic))
                 {
                     if (process_robot_feedback(event->data, &motor_values) == ESP_OK)
@@ -114,7 +114,7 @@ void mqtt_event_handler(void *handler_args, esp_event_base_t base, int32_t event
 
             default:
             {
-                ESP_LOGI(TAG, "Other event id:%d", event->event_id);
+                //ESP_LOGI(TAG, "Other event id:%d", event->event_id);
                 break;
             }
     }
@@ -170,7 +170,7 @@ int process_robot_feedback(const char *data, movement_vector_t *motor_values)
         goto end;
     }
 
-    ESP_LOGI(TAG, "MQTT_CLIENT processing feedback");
+    //ESP_LOGI(TAG, "MQTT_CLIENT processing feedback");
 
     setpoint = cJSON_GetObjectItemCaseSensitive(data_json, "distance");
     if (!cJSON_IsNumber(setpoint))

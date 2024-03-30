@@ -280,7 +280,8 @@ void master_task(void *arg)
 
     while(1)
     {
-        vTaskDelay(500 / portTICK_PERIOD_MS);
+        //vTaskDelay(1 / portTICK_PERIOD_MS);
+        vTaskDelay(100);
 
         // receive line follower pulses
         if(xQueueReceive(line_follower_master_rcv_queue, &line_follower_received, 0) == pdTRUE)
@@ -486,6 +487,8 @@ void master_task(void *arg)
 
             case ST_MT_SEND_RPM_COMPENSATED:
             {
+                //static uint8_t asd = 0;
+
                 xQueueSend(master_task_motor_A_rcv_queue, &motor_A_data, 0);
                 xQueueSend(master_task_motor_B_rcv_queue, &motor_B_data, 0);
                 xQueueSend(master_task_motor_C_rcv_queue, &motor_C_data, 0);
@@ -497,6 +500,10 @@ void master_task(void *arg)
                     average_distance += rpm_queue[i].distance;
                 }
                 average_distance = average_distance / MOTOR_TASK_COUNT;
+
+                // if(!asd) {send_mqtt_feedback(velocidades_lineales_reales, average_distance);}
+                // asd++;
+                // asd %= 3;
                 send_mqtt_feedback(velocidades_lineales_reales, average_distance);
 
                 if (flag_stop_all_motors)
@@ -556,14 +563,15 @@ void app_main(void)
 
     line_follower_master_rcv_queue = xQueueCreate(1, sizeof(line_follower_event_t));
 
-    timer_initialize(TIMER_1, TIMER_AUTORELOAD_EN, TIMER_INTERVAL_RPM_MEASURE, isr_timer_handler);
+    timer_initialize(TIMER_0, TIMER_AUTORELOAD_EN, TIMER_INTERVAL_LINEF_MEASURE, isr_timer_handler_line_follower);
+    timer_initialize(TIMER_1, TIMER_AUTORELOAD_EN, TIMER_INTERVAL_RPM_MEASURE, isr_timer_handler_wheel_encoder);
 
     motorInitialize();
     gpio_initialize();
     wifi_flag = wifi_initialize_station();
     mqtt_client = mqtt_app_start(&master_task_receive_setpoint_queue);
 
-    xTaskCreate(master_task, "master_task", 2048, NULL, 5, NULL);
+    xTaskCreate(master_task, "master_task", 2048, NULL, 10, NULL);
 
     return;
 }
@@ -579,55 +587,71 @@ void motor_task_creator(task_params_t *param_motor, char *taskName, uint8_t assi
 }
 
 // Timer ISR handler
-void IRAM_ATTR isr_timer_handler(void *para)
+void IRAM_ATTR isr_timer_handler_line_follower(void *param)
 {
     timer_spinlock_take(TIMER_GROUP_0);
-    int timer_idx = (int) para;
+    int timer_idx = (int) param;
+    line_follower_event_t linef_evt = {0};
+
+    uint32_t timer_intr = timer_group_get_intr_status_in_isr(TIMER_GROUP_0);
+
+    if (timer_intr & TIMER_INTR_T0) // timer 1 -> line follower
+    {
+        timer_group_clr_intr_status_in_isr(TIMER_GROUP_0, timer_idx);
+
+        pcnt_get_counter_value(PCNT_UNIT_4, &linef_evt.hall_sensor_count[0]);
+        pcnt_get_counter_value(PCNT_UNIT_5, &linef_evt.hall_sensor_count[1]);
+        pcnt_get_counter_value(PCNT_UNIT_6, &linef_evt.hall_sensor_count[2]);
+        pcnt_get_counter_value(PCNT_UNIT_7, &linef_evt.hall_sensor_count[3]);
+
+        restart_pulse_counter(PCNT_UNIT_4);
+        restart_pulse_counter(PCNT_UNIT_5);
+        restart_pulse_counter(PCNT_UNIT_6);
+        restart_pulse_counter(PCNT_UNIT_7);
+
+        xQueueSendFromISR(line_follower_master_rcv_queue, &linef_evt, NULL);
+    }
+
+    /* After the alarm has been triggered we need enable it again, so it is triggered the next time */
+    timer_group_enable_alarm_in_isr(TIMER_GROUP_0, timer_idx);
+    timer_spinlock_give(TIMER_GROUP_0);
+    return;
+}
+
+void IRAM_ATTR isr_timer_handler_wheel_encoder(void *param)
+{
+    timer_spinlock_take(TIMER_GROUP_0);
+    int timer_idx = (int) param;
     encoder_event_t evt_A = {0}; // for wheel encoders
     encoder_event_t evt_B = {0};
     encoder_event_t evt_C = {0};
     encoder_event_t evt_D = {0};
-    line_follower_event_t linef_evt = {0};
 
     /* Retrieve the interrupt status and the counter value from the timer that reported the interrupt */
     uint32_t timer_intr = timer_group_get_intr_status_in_isr(TIMER_GROUP_0);
 
     if (timer_intr & TIMER_INTR_T1) // timer 1 -> RPM
     {
-        timer_group_clr_intr_status_in_isr(TIMER_GROUP_0, TIMER_1);
+        timer_group_clr_intr_status_in_isr(TIMER_GROUP_0, timer_idx);
 
-        // get pulses from encoders
         pcnt_get_counter_value(PCNT_UNIT_0, &evt_A.pulses_count);
         pcnt_get_counter_value(PCNT_UNIT_1, &evt_B.pulses_count);
         pcnt_get_counter_value(PCNT_UNIT_2, &evt_C.pulses_count);
         pcnt_get_counter_value(PCNT_UNIT_3, &evt_D.pulses_count);
 
-        // get line follower pulses
-        pcnt_get_counter_value(PCNT_UNIT_4, &linef_evt.hall_sensor_count[0]);
-        pcnt_get_counter_value(PCNT_UNIT_5, &linef_evt.hall_sensor_count[1]);
-        pcnt_get_counter_value(PCNT_UNIT_6, &linef_evt.hall_sensor_count[2]);
-        pcnt_get_counter_value(PCNT_UNIT_7, &linef_evt.hall_sensor_count[3]);
-
-        // clear and restart all counts
         restart_pulse_counter(PCNT_UNIT_0);
         restart_pulse_counter(PCNT_UNIT_1);
         restart_pulse_counter(PCNT_UNIT_2);
         restart_pulse_counter(PCNT_UNIT_3);
-        restart_pulse_counter(PCNT_UNIT_4);
-        restart_pulse_counter(PCNT_UNIT_5);
-        restart_pulse_counter(PCNT_UNIT_6);
-        restart_pulse_counter(PCNT_UNIT_7);
+
+        xQueueSendFromISR(encoder_motor_A_rcv_queue, &evt_A, NULL); // send the event data back to the main program task
+        xQueueSendFromISR(encoder_motor_B_rcv_queue, &evt_B, NULL); // send the event data back to the main program task
+        xQueueSendFromISR(encoder_motor_C_rcv_queue, &evt_C, NULL); // send the event data back to the main program task
+        xQueueSendFromISR(encoder_motor_D_rcv_queue, &evt_D, NULL); // send the event data back to the main program task
     }
 
     /* After the alarm has been triggered we need enable it again, so it is triggered the next time */
     timer_group_enable_alarm_in_isr(TIMER_GROUP_0, timer_idx);
-
-    xQueueSendFromISR(encoder_motor_A_rcv_queue, &evt_A, NULL); // send the event data back to the main program task
-    xQueueSendFromISR(encoder_motor_B_rcv_queue, &evt_B, NULL); // send the event data back to the main program task
-    xQueueSendFromISR(encoder_motor_C_rcv_queue, &evt_C, NULL); // send the event data back to the main program task
-    xQueueSendFromISR(encoder_motor_D_rcv_queue, &evt_D, NULL); // send the event data back to the main program task
-    xQueueSendFromISR(line_follower_master_rcv_queue, &linef_evt, NULL); // send the event data back to the main program task
-
     timer_spinlock_give(TIMER_GROUP_0);
     return;
 }

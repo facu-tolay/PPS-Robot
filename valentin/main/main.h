@@ -106,6 +106,7 @@ typedef struct {
 // function prototypes
 void main_task(void *arg);
 void motor_task_creator(task_params_t *param_motor, char *taskName, uint8_t assignedMotor, xQueueHandle *masterReceiveQueue, xQueueHandle *encoderLineFllwrReceiveQueue);
-void IRAM_ATTR isr_timer_handler(void *para);
+void IRAM_ATTR isr_timer_handler_line_follower(void *param);
+void IRAM_ATTR isr_timer_handler_wheel_encoder(void *param);
 
 #endif /* MAIN_PID_CONTROLLER_H_ */
