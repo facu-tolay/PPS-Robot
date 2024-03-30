@@ -540,7 +540,7 @@ void app_main(void)
 
     // initialize queues
     master_task_feedback = xQueueCreate(16, sizeof(master_task_feedback_t));
-    master_task_receive_setpoint_queue = xQueueCreate(1, sizeof(movement_vector_t));
+    master_task_receive_setpoint_queue = xQueueCreate(10, sizeof(movement_vector_t));
 
     encoder_motor_A_rcv_queue = xQueueCreate(16, sizeof(encoder_event_t));
     encoder_motor_B_rcv_queue = xQueueCreate(16, sizeof(encoder_event_t));
