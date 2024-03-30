@@ -135,7 +135,6 @@ void task_motor(void *arg)
                     master_feedback.average_rpm = calculate_average(rpm_buffer, RPM_BUFFER_SIZE);
                     master_feedback.distance = count_sum * DELTA_DISTANCE_PER_SLIT;
                     xQueueSend(master_task_feedback, &master_feedback, 0);
-                    // ESP_LOGI(TAG, "STATUS WORKING - MOTOR TASK: %s", task_params->task_name);
                 }
             }
 
@@ -203,12 +202,14 @@ void task_motor(void *arg)
                     master_feedback.status = TASK_STATUS_IDLE;
                 }
             }
+
+            //ESP_LOGI(TAG, "[%s] new setpoint received", task_params->task_name);
         }
     }
 }
 
 void master_task(void *arg)
- {
+{
     float velocidades_lineales[VELOCITY_VECTOR_SIZE]        = {0};
     float velocidades_lineales_reales[VELOCITY_VECTOR_SIZE] = {0};
     float delta_velocidad_lineal[VELOCITY_VECTOR_SIZE]      = {0};
@@ -281,7 +282,7 @@ void master_task(void *arg)
     while(1)
     {
         //vTaskDelay(1 / portTICK_PERIOD_MS);
-        vTaskDelay(100);
+        vTaskDelay(1);
 
         // receive line follower pulses
         if(xQueueReceive(line_follower_master_rcv_queue, &line_follower_received, 0) == pdTRUE)
@@ -339,6 +340,7 @@ void master_task(void *arg)
                     motor_C_data.setpoint = movement_vector.setpoint;
                     motor_D_data.setpoint = movement_vector.setpoint;
 
+                    ESP_LOGI(TAG, "AAAAAAA");
                     xQueueSend(master_task_motor_A_rcv_queue, &motor_A_data, 0);
                     xQueueSend(master_task_motor_B_rcv_queue, &motor_B_data, 0);
                     xQueueSend(master_task_motor_C_rcv_queue, &motor_C_data, 0);
@@ -358,27 +360,20 @@ void master_task(void *arg)
                 {
                     if(feedback_received.status == TASK_STATUS_IDLE)
                     {
-                        // must stop all motors
-                        static int i = 0;
-                        i++;
-                        if (i == MOTOR_TASK_COUNT)
+                        if(!flag_stop_all_motors)
                         {
-                            if(!flag_stop_all_motors)
-                            {
-                                motor_A_data.rpm = 0;
-                                motor_A_data.setpoint = 0;
-                                motor_B_data.rpm = 0;
-                                motor_B_data.setpoint = 0;
-                                motor_C_data.rpm = 0;
-                                motor_C_data.setpoint = 0;
-                                motor_D_data.rpm = 0;
-                                motor_D_data.setpoint = 0;
+                            motor_A_data.rpm = 0;
+                            motor_A_data.setpoint = 0;
+                            motor_B_data.rpm = 0;
+                            motor_B_data.setpoint = 0;
+                            motor_C_data.rpm = 0;
+                            motor_C_data.setpoint = 0;
+                            motor_D_data.rpm = 0;
+                            motor_D_data.setpoint = 0;
 
-                                flag_stop_all_motors = 1;
-                                i = 0;
-                                state = ST_MT_SEND_RPM_COMPENSATED;
-                                break;
-                            }
+                            flag_stop_all_motors = 1;
+                            state = ST_MT_SEND_RPM_COMPENSATED;
+                            break;
                         }
                         break;
                     }
@@ -487,8 +482,7 @@ void master_task(void *arg)
 
             case ST_MT_SEND_RPM_COMPENSATED:
             {
-                //static uint8_t asd = 0;
-
+                ESP_LOGI(TAG, "BBBBBBB");
                 xQueueSend(master_task_motor_A_rcv_queue, &motor_A_data, 0);
                 xQueueSend(master_task_motor_B_rcv_queue, &motor_B_data, 0);
                 xQueueSend(master_task_motor_C_rcv_queue, &motor_C_data, 0);
@@ -501,9 +495,6 @@ void master_task(void *arg)
                 }
                 average_distance = average_distance / MOTOR_TASK_COUNT;
 
-                // if(!asd) {send_mqtt_feedback(velocidades_lineales_reales, average_distance);}
-                // asd++;
-                // asd %= 3;
                 send_mqtt_feedback(velocidades_lineales_reales, average_distance);
 
                 if (flag_stop_all_motors)
