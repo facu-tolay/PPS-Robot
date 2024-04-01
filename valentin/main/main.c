@@ -74,6 +74,8 @@ void task_motor(void *arg)
     uint8_t motor_direction = 0;
     int16_t objective_count = 0;
     int16_t count_sum = 0;
+    int16_t prev_count_sum = 0;
+    int16_t delta_count_sum = 0;
     uint16_t measure_count = 0;
 
      while (1)
@@ -130,10 +132,12 @@ void task_motor(void *arg)
                 if(rpm_index >= RPM_BUFFER_SIZE)
                 {
                     rpm_index = 0;
+                    delta_count_sum = count_sum - prev_count_sum;
+                    prev_count_sum = count_sum;
 
                     // notify rpm average to master task
                     master_feedback.average_rpm = calculate_average(rpm_buffer, RPM_BUFFER_SIZE);
-                    master_feedback.distance = count_sum * DELTA_DISTANCE_PER_SLIT;
+                    master_feedback.distance = delta_count_sum * DELTA_DISTANCE_PER_SLIT;
                     xQueueSend(master_task_feedback, &master_feedback, 0);
                 }
             }
@@ -182,7 +186,8 @@ void task_motor(void *arg)
 
             if(motor_movement_vector.setpoint >= 0)
             {
-                objective_count = motor_movement_vector.setpoint / DELTA_DISTANCE_PER_SLIT;
+                //objective_count = motor_movement_vector.setpoint / DELTA_DISTANCE_PER_SLIT;
+                objective_count = (0.3+motor_movement_vector.setpoint) / DELTA_DISTANCE_PER_SLIT; // FIXME fix temporal para evitar que el robot frene porque recorrio menos distancia y el python se bloquee esperando feedback
 
                 measure_count = 0;
                 count_sum = 0;
@@ -492,6 +497,7 @@ void master_task(void *arg)
                 for(int i=0; i<MOTOR_TASK_COUNT; i++)
                 {
                     average_distance += rpm_queue[i].distance;
+                    rpm_queue[i].distance = 0;
                 }
                 average_distance = average_distance / MOTOR_TASK_COUNT;
 
