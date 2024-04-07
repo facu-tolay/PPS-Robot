@@ -7,6 +7,9 @@
 
 #include "kinematics.h"
 
+float desplazamiento_accum[VELOCITY_VECTOR_SIZE] = {0};
+
+
 /*
  * Obtiene las velocidades angulares de cada rueda segun los parametros (Xr, Yr, theta)
  * */
@@ -113,6 +116,23 @@ void calculo_error_velocidades_lineales(float *velocidad_lineal, float *velocida
     for(int i=0; i<3; i++)
     {
         delta_velocidad_lineal[i] = velocidad_lineal_real[i] - velocidad_lineal[i];
+    }
+}
+
+void calculo_distancia_recorrida_acumulada(float *velocidad_lineal_real, float delta_t, float *distancia_accum)
+{
+    for (int i=0; i<VELOCITY_VECTOR_SIZE; i++)
+    {
+        desplazamiento_accum[i] += (velocidad_lineal_real[i] * delta_t);
+        distancia_accum[i] = desplazamiento_accum[i];
+    }
+}
+
+void reset_accum()
+{
+    for (int i=0; i<VELOCITY_VECTOR_SIZE; i++)
+    {
+        desplazamiento_accum[i] = 0;
     }
 }
 

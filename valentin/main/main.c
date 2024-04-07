@@ -218,7 +218,11 @@ void master_task(void *arg)
     float velocidades_lineales[VELOCITY_VECTOR_SIZE]        = {0};
     float velocidades_lineales_reales[VELOCITY_VECTOR_SIZE] = {0};
     float delta_velocidad_lineal[VELOCITY_VECTOR_SIZE]      = {0};
+    float distancia_accum[VELOCITY_VECTOR_SIZE]             = {0};
     float average_distance                                  = 0;
+    float delta_t                                           = 0;
+    TickType_t last_tick                                    = 0;
+    TickType_t current_tick                                 = 0;
     float velocidades_angulares_motores[MOTOR_TASK_COUNT]   = {0};
     float velocidad_angular_compensacion[MOTOR_TASK_COUNT]  = {0};
     float velocidad_angular_compensada[MOTOR_TASK_COUNT]    = {0};
@@ -335,17 +339,18 @@ void master_task(void *arg)
                     velocidades_lineales[2] = movement_vector.velocidad_angular;
 
                     calculo_matriz_cinematica_inversa(velocidades_lineales, velocidades_angulares_motores);
+                    reset_accum();
+                    last_tick = xTaskGetTickCount();
 
                     motor_A_data.rpm = velocidades_angulares_motores[0];
                     motor_B_data.rpm = velocidades_angulares_motores[1];
                     motor_C_data.rpm = velocidades_angulares_motores[2];
                     motor_D_data.rpm = velocidades_angulares_motores[3];
-                    motor_A_data.setpoint = movement_vector.setpoint; // FIXME deberia calcular la distancia adecuada para cada rueda, no la misma para todas
+                    motor_A_data.setpoint = movement_vector.setpoint;
                     motor_B_data.setpoint = movement_vector.setpoint;
                     motor_C_data.setpoint = movement_vector.setpoint;
                     motor_D_data.setpoint = movement_vector.setpoint;
 
-                    ESP_LOGI(TAG, "AAAAAAA");
                     xQueueSend(master_task_motor_A_rcv_queue, &motor_A_data, 0);
                     xQueueSend(master_task_motor_B_rcv_queue, &motor_B_data, 0);
                     xQueueSend(master_task_motor_C_rcv_queue, &motor_C_data, 0);
@@ -430,8 +435,9 @@ void master_task(void *arg)
                 // Obtencion de las velocidades lineales reales a partir de las RPM
                 calculo_matriz_cinematica_directa(rpm_average_array, velocidades_lineales_reales);
 
-                float resultante = sqrt((pow(velocidades_lineales_reales[0], 2) + pow(velocidades_lineales_reales[1], 2)));
-                float angulo = asin(velocidades_lineales_reales[1] / resultante) * 180/M_PI;
+                //float resultante = sqrt((pow(velocidades_lineales_reales[0], 2) + pow(velocidades_lineales_reales[1], 2)));
+                //float angulo = asin(velocidades_lineales_reales[1] / resultante) * 180/M_PI;
+                ESP_LOGI(TAG, "veloc lineales reales: %2.3f / %2.3f / %2.3f\n", velocidades_lineales_reales[0], velocidades_lineales_reales[1], velocidades_lineales_reales[2]);
 
                 for(int i=0; i<HALL_SENSOR_COUNT; i++)
                 {
@@ -487,20 +493,19 @@ void master_task(void *arg)
 
             case ST_MT_SEND_RPM_COMPENSATED:
             {
-                ESP_LOGI(TAG, "BBBBBBB");
                 xQueueSend(master_task_motor_A_rcv_queue, &motor_A_data, 0);
                 xQueueSend(master_task_motor_B_rcv_queue, &motor_B_data, 0);
                 xQueueSend(master_task_motor_C_rcv_queue, &motor_C_data, 0);
                 xQueueSend(master_task_motor_D_rcv_queue, &motor_D_data, 0);
 
                 average_distance = 0;
-                for(int i=0; i<MOTOR_TASK_COUNT; i++)
-                {
-                    average_distance += rpm_queue[i].distance;
-                    rpm_queue[i].distance = 0;
-                }
-                average_distance = average_distance / MOTOR_TASK_COUNT;
+                //delta_t = 0.5;
+                current_tick = xTaskGetTickCount();
+                delta_t = (current_tick - last_tick) * (1.0 / configTICK_RATE_HZ);
+                last_tick = current_tick;
 
+                calculo_distancia_recorrida_acumulada(velocidades_lineales_reales, delta_t, distancia_accum);
+                ESP_LOGI(TAG, "recorrido accum: delta_t: <%2.3f> ||| %2.3f / %2.3f / %2.3f\n", delta_t, distancia_accum[0], distancia_accum[1], distancia_accum[2]);
                 send_mqtt_feedback(velocidades_lineales_reales, average_distance);
 
                 if (flag_stop_all_motors)
@@ -568,7 +573,7 @@ void app_main(void)
     wifi_flag = wifi_initialize_station();
     mqtt_client = mqtt_app_start(&master_task_receive_setpoint_queue);
 
-    xTaskCreate(master_task, "master_task", 2048, NULL, 10, NULL);
+    xTaskCreate(master_task, "master_task", 3072, NULL, 10, NULL);
 
     return;
 }

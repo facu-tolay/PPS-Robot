@@ -36,6 +36,8 @@ typedef struct {
 void calculo_matriz_cinematica_inversa(float *vector_velocidad_lineal, float *vector_velocidad_angular);
 void calculo_matriz_cinematica_directa(float *vector_velocidad_angular, float *vector_velocidad_lineal);
 void calculo_error_velocidades_lineales(float *velocidad_lineal, float *velocidad_lineal_real, float *delta_velocidad_lineal);
+void calculo_distancia_recorrida_acumulada(float *velocidad_lineal_real, float delta_t, float *distancia_accum);
+void reset_accum();
 void seteo_parametros_vectores(float *vector_velocidad_lineal, float *vector_velocidad_angular, movement_vector_t *movement_vector);
 void seteo_datos_motor_task(float velocidad_angular, float setpoint, motor_movement_vector_t *motor, QueueHandle_t queue);
 
