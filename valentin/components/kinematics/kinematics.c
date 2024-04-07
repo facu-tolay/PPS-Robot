@@ -119,11 +119,12 @@ void calculo_error_velocidades_lineales(float *velocidad_lineal, float *velocida
     }
 }
 
-void calculo_distancia_recorrida_acumulada(float *velocidad_lineal_real, float delta_t, float *distancia_accum)
+void calculo_distancia_recorrida_acumulada(float *velocidad_lineal_real, float delta_t, float *distancia_accum, float *delta_distance)
 {
     for (int i=0; i<VELOCITY_VECTOR_SIZE; i++)
     {
-        desplazamiento_accum[i] += (fabs(velocidad_lineal_real[i]) * delta_t);
+        delta_distance[i] = fabs(velocidad_lineal_real[i]) * delta_t;
+        desplazamiento_accum[i] = desplazamiento_accum[i] + delta_distance[i];
         distancia_accum[i] = desplazamiento_accum[i];
     }
 }
@@ -134,6 +135,13 @@ void reset_accum()
     {
         desplazamiento_accum[i] = 0;
     }
+}
+
+uint8_t robot_in_radius_of_setpoint(float desired_setpoint, float *current_position)
+{
+    float delta_x = fabs(current_position[0] - desired_setpoint);
+    float delta_y = fabs(current_position[1] - desired_setpoint);
+    return (delta_x <= MIN_DESTINATION_RADIUS || current_position[0] >= desired_setpoint || delta_y <= MIN_DESTINATION_RADIUS || current_position[1] >= desired_setpoint);
 }
 
 void seteo_parametros_vectores(float *vector_velocidad_lineal, float *vector_velocidad_angular, movement_vector_t *movement_vector)

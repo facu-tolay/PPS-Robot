@@ -128,12 +128,10 @@ void send_log(void)
     }
 }
 
-void send_mqtt_feedback(float velocidades_lineales_reales[VELOCITY_VECTOR_SIZE], float average_distance)
+void send_mqtt_feedback(float velocidades_lineales_reales[VELOCITY_VECTOR_SIZE], float *delta_distance)
 {
     char buffer[64];
-    float avg_dist_x = 0;
-    float avg_dist_y = average_distance;
-    sprintf(buffer, "{\"dx\":%2.2f, \"vx\":%2.2f, \"dy\":%2.2f, \"vy\":%2.2f}", avg_dist_x, velocidades_lineales_reales[0], avg_dist_y, velocidades_lineales_reales[1]);
+    sprintf(buffer, "{\"dx\":%2.2f, \"vx\":%2.2f, \"dy\":%2.2f, \"vy\":%2.2f}", delta_distance[0], velocidades_lineales_reales[0], delta_distance[1], velocidades_lineales_reales[1]);
 
     if (esp_mqtt_client_publish(client, topic_robot_feedback, buffer, 0, 0, 0) == ESP_FAIL)
     {

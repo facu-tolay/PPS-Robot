@@ -10,6 +10,7 @@
 #define CANT_RANURAS_ENCODER    (float)(24.0)
 #define ONE_TURN_DISPLACEMENT   (float)(0.159593) // por cada vuelta de la rueda, se avanza 2.PI.r = PI x 5.08cm = 15.9593[cm] = 0.159593[m]
 #define DELTA_DISTANCE_PER_SLIT (float)(0.0066497)// cuantos [m] avanza por cada ranura (ONE_TURN_DISPLACEMENT/CANT_RANURAS_ENCODER)
+#define MIN_DESTINATION_RADIUS  (float)0.04 // expresado en [m] - radio que se considera que "llego" al setpoint
 
 // PWM defines
 #define MIN_PWM_VALUE   1300

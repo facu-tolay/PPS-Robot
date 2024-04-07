@@ -219,7 +219,7 @@ void master_task(void *arg)
     float velocidades_lineales_reales[VELOCITY_VECTOR_SIZE] = {0};
     float delta_velocidad_lineal[VELOCITY_VECTOR_SIZE]      = {0};
     float distancia_accum[VELOCITY_VECTOR_SIZE]             = {0};
-    float average_distance                                  = 0;
+    float delta_distance[VELOCITY_VECTOR_SIZE]              = {0};
     float delta_t                                           = 0;
     TickType_t last_tick                                    = 0;
     TickType_t current_tick                                 = 0;
@@ -229,7 +229,7 @@ void master_task(void *arg)
     float velocidad_angular_compensada[MOTOR_TASK_COUNT]    = {0};
 
     uint8_t state = ST_MT_INIT;
-    uint8_t flag_stop_all_motors = 0;
+    uint8_t flag_stop_all_motors = 1;
 
     master_task_feedback_t feedback_received = {0};
     movement_vector_t movement_vector = {0};
@@ -291,7 +291,6 @@ void master_task(void *arg)
 
     while(1)
     {
-        //vTaskDelay(1 / portTICK_PERIOD_MS);
         vTaskDelay(1);
 
         // receive line follower pulses
@@ -340,8 +339,20 @@ void master_task(void *arg)
                     velocidades_lineales[2] = movement_vector.velocidad_angular;
 
                     calculo_matriz_cinematica_inversa(velocidades_lineales, velocidades_angulares_motores);
-                    reset_accum();
-                    last_tick = xTaskGetTickCount();
+                    if(flag_stop_all_motors)
+                    {
+                        reset_accum();
+                        last_tick = xTaskGetTickCount();
+
+                        restart_pulse_counter(PCNT_UNIT_0);
+                        restart_pulse_counter(PCNT_UNIT_1);
+                        restart_pulse_counter(PCNT_UNIT_2);
+                        restart_pulse_counter(PCNT_UNIT_3);
+                        restart_pulse_counter(PCNT_UNIT_4);
+                        restart_pulse_counter(PCNT_UNIT_5);
+                        restart_pulse_counter(PCNT_UNIT_6);
+                        restart_pulse_counter(PCNT_UNIT_7);
+                    }
 
                     motor_A_data.rpm = velocidades_angulares_motores[0];
                     motor_B_data.rpm = velocidades_angulares_motores[1];
@@ -359,6 +370,11 @@ void master_task(void *arg)
                     xQueueSend(master_task_motor_D_rcv_queue, &motor_D_data, 0);
                     state = ST_MT_GATHER_RPM;
                     break;
+                }
+
+                if(!flag_stop_all_motors)
+                {
+                    state = ST_MT_GATHER_RPM;
                 }
 
                 break;
@@ -437,10 +453,10 @@ void master_task(void *arg)
                 delta_t = (current_tick - last_tick) * (1.0 / configTICK_RATE_HZ);
                 last_tick = current_tick;
 
-                calculo_distancia_recorrida_acumulada(velocidades_lineales_reales, delta_t, distancia_accum);
+                calculo_distancia_recorrida_acumulada(velocidades_lineales_reales, delta_t, distancia_accum, delta_distance);
                 ESP_LOGI(TAG, "recorrido accum: delta_t: <%2.3f> ||| %2.3f / %2.3f / %2.3f\n", delta_t, distancia_accum[0], distancia_accum[1], distancia_accum[2]);
 
-                if(distancia_accum[0] >= desired_setpoint || distancia_accum[1] >= desired_setpoint) // DEBERIA DETECTAR CUANDO ESTE DENTRO DE UN RADIO DEFINIDO
+                if(robot_in_radius_of_setpoint(desired_setpoint, distancia_accum))
                 {
                     // stop all motors
                     motor_A_data.rpm = 0;
@@ -520,8 +536,7 @@ void master_task(void *arg)
                 xQueueSend(master_task_motor_C_rcv_queue, &motor_C_data, 0);
                 xQueueSend(master_task_motor_D_rcv_queue, &motor_D_data, 0);
 
-                average_distance = 0;
-                send_mqtt_feedback(velocidades_lineales_reales, average_distance);
+                send_mqtt_feedback(velocidades_lineales_reales, delta_distance);
 
                 if (flag_stop_all_motors)
                 {
@@ -530,7 +545,8 @@ void master_task(void *arg)
                 }
                 else
                 {
-                    state = ST_MT_GATHER_RPM;
+                    //state = ST_MT_GATHER_RPM;
+                    state = ST_MT_IDLE;
                 }
                 break;
             }
