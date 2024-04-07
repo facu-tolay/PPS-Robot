@@ -9,6 +9,7 @@
 #define COMPONENTS_KINEMATICS_KINEMATICS_H_
 
 #include <stdio.h>
+#include <math.h>
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
 #include "freertos/FreeRTOSConfig.h"

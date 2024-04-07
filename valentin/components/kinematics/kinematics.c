@@ -123,7 +123,7 @@ void calculo_distancia_recorrida_acumulada(float *velocidad_lineal_real, float d
 {
     for (int i=0; i<VELOCITY_VECTOR_SIZE; i++)
     {
-        desplazamiento_accum[i] += (velocidad_lineal_real[i] * delta_t);
+        desplazamiento_accum[i] += (fabs(velocidad_lineal_real[i]) * delta_t);
         distancia_accum[i] = desplazamiento_accum[i];
     }
 }
