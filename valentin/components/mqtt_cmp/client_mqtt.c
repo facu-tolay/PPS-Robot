@@ -139,6 +139,17 @@ void send_mqtt_feedback(float velocidades_lineales_reales[VELOCITY_VECTOR_SIZE],
     }
 }
 
+void send_mqtt_status_path_done()
+{
+    char buffer[16];
+    sprintf(buffer, "{\"status\":0}");
+
+    if (esp_mqtt_client_publish(client, topic_robot_feedback, buffer, 0, 0, 0) == ESP_FAIL)
+    {
+        ESP_LOGE(TAG, "error in enqueue msg");
+    }
+}
+
 void forward_robot_feedback(xQueueHandle *receive_queue, movement_vector_t *motor_values)
 {
     if (xQueueSend(*receive_queue, (void*)motor_values, 0) != pdTRUE)
