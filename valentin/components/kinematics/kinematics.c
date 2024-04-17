@@ -129,6 +129,38 @@ void calculo_distancia_recorrida_acumulada(float *velocidad_lineal_real, float d
     }
 }
 
+void calculo_compensacion_linea_magnetica(float velocidad_rotacional, float velocidades_lineales_reales[VELOCITY_VECTOR_SIZE], int line_follower_count[HALL_SENSOR_COUNT])
+{
+    for(int i=0; i<HALL_SENSOR_COUNT; i++)
+    {
+        if ((i == 0 || i == 2) && line_follower_count[i] != 0)
+        {
+            if(velocidad_rotacional != 0)
+            {
+                if(i==0)
+                {
+                    velocidades_lineales_reales[2] = velocidades_lineales_reales[2] + line_follower_count[i]*2.0*LINEF_ANGULAR_COMP;
+                }
+                else
+                {
+                    velocidades_lineales_reales[2] = velocidades_lineales_reales[2] - line_follower_count[i]*2.0*LINEF_ANGULAR_COMP;
+                }
+            }
+            else
+            {
+                if(i==0)
+                {
+                    velocidades_lineales_reales[2] = velocidades_lineales_reales[2] + line_follower_count[i]*1.75*LINEF_ANGULAR_COMP;
+                }
+                else
+                {
+                    velocidades_lineales_reales[2] = velocidades_lineales_reales[2] - line_follower_count[i]*1.75*LINEF_ANGULAR_COMP;
+                }
+            }
+        }
+    }
+}
+
 void reset_accum()
 {
     for (int i=0; i<VELOCITY_VECTOR_SIZE; i++)
