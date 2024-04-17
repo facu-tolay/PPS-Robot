@@ -537,27 +537,6 @@ void master_task(void *arg)
                 break;
             }
 
-            case ST_MT_SEND_RPM_COMPENSATED:
-            {
-                // xQueueSend(master_task_motor_A_rcv_queue, &motor_A_data, 0);
-                // xQueueSend(master_task_motor_B_rcv_queue, &motor_B_data, 0);
-                // xQueueSend(master_task_motor_C_rcv_queue, &motor_C_data, 0);
-                // xQueueSend(master_task_motor_D_rcv_queue, &motor_D_data, 0);
-
-                // send_mqtt_feedback(velocidades_lineales_reales, delta_distance);
-
-                // if(is_running)
-                // {
-                //     state = ST_MT_GATHER_RPM;
-                // }
-                // else
-                // {
-                //     send_mqtt_status_path_done();
-                //     state = ST_MT_IDLE;
-                // }
-                break;
-            }
-
             default:
             {
                 break;

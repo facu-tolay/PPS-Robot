@@ -41,8 +41,6 @@
 #define ST_MT_IDLE                  1
 #define ST_MT_GATHER_RPM            2
 #define ST_MT_CALC_RPM_COMP         3
-#define ST_MT_SEND_RPM_COMPENSATED  4
-#define ST_MT_DESCANSO              5
 
 // MQTT defines
 #define MQTT_SEND_BUFFER    192
