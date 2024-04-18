@@ -30,11 +30,12 @@
 
 esp_mqtt_client_handle_t mqtt_app_start(xQueueHandle *receive_queue);
 void mqtt_event_handler(void *handler_args, esp_event_base_t base, int32_t event_id, void *event_data);
-void send_log();
 void send_mqtt_feedback(float velocidades_lineales_reales[VELOCITY_VECTOR_SIZE], float *delta_distance);
 void send_mqtt_status_path_done();
+void send_mqtt_register_request();
 void forward_robot_feedback(xQueueHandle *receive_queue, movement_vector_t *motor_values);
 int process_robot_feedback(const char *data, movement_vector_t *motor_values);
+int register_robot(const char *data, char *robot_name);
 
 
 

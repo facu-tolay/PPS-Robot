@@ -306,8 +306,7 @@ void master_task(void *arg)
                 {
                     line_follower_count[i] = 0;
                 }
-
-                linef_hysteresis_count=0;
+                linef_hysteresis_count = 0;
             }
 
             for(int i=0; i<HALL_SENSOR_COUNT; i++)
@@ -348,6 +347,12 @@ void master_task(void *arg)
                 restart_pulse_counter(PCNT_UNIT_5);
                 restart_pulse_counter(PCNT_UNIT_6);
                 restart_pulse_counter(PCNT_UNIT_7);
+
+                linef_hysteresis_count = 0;
+                for(int i=0; i<HALL_SENSOR_COUNT; i++)
+                {
+                    line_follower_count[i] = 0;
+                }
 
                 is_running = 1;
             }

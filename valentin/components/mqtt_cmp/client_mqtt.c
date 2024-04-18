@@ -2,9 +2,10 @@
 
 static const char *TAG = "mqtt_client";
 esp_mqtt_client_handle_t client = NULL;
-char topic_robot_register_id[MQQT_TOPIC_LEN] = {0};
+char topic_robot_register[MQQT_TOPIC_LEN] = {0};
 char topic_receive_setpoint[MQQT_TOPIC_LEN] = {0};
 char topic_robot_feedback[MQQT_TOPIC_LEN] = {0};
+char robot_name[10];
 
 esp_mqtt_client_handle_t mqtt_app_start(xQueueHandle *receive_queue)
 {
@@ -20,13 +21,11 @@ esp_mqtt_client_handle_t mqtt_app_start(xQueueHandle *receive_queue)
     };
 
     client = esp_mqtt_client_init(&mqtt_cfg);
-    /* The last argument may be used to pass data to the event handler, in this example mqtt_event_handler */
-    ESP_ERROR_CHECK(esp_mqtt_client_register_event(client, ESP_EVENT_ANY_ID, mqtt_event_handler, (void*)receive_queue));
+    ESP_ERROR_CHECK(esp_mqtt_client_register_event(client, ESP_EVENT_ANY_ID, mqtt_event_handler, (void*)receive_queue)); // the last argument is used to pass data to the event handler
     ESP_ERROR_CHECK(esp_mqtt_client_start(client));
-    sprintf(topic_robot_register_id, "/topic/%s", mqtt_cfg.client_id);
+    sprintf(topic_robot_register, "/topic/register");
     sprintf(topic_receive_setpoint, "/topic/setpoint/%s", mqtt_cfg.client_id);
     sprintf(topic_robot_feedback, "/topic/live/%s", mqtt_cfg.client_id);
-
     return client;
 }
 
@@ -36,95 +35,76 @@ void mqtt_event_handler(void *handler_args, esp_event_base_t base, int32_t event
     esp_mqtt_event_handle_t event = event_data;
     movement_vector_t motor_values = {0};
     int msg_id = 0;
-
-    //ESP_LOGI(TAG, "Event dispatched from event loop base=%s, event_id=%d", base, event_id);
+    int register_status = 0;
 
     switch ((esp_mqtt_event_id_t)event_id)
     {
-            case MQTT_EVENT_CONNECTED:
+        case MQTT_EVENT_CONNECTED:
+        {
+            if ((msg_id = esp_mqtt_client_subscribe(client, topic_receive_setpoint, 0)) == ESP_FAIL)
             {
-                //ESP_LOGI(TAG, "MQTT_CLIENT <connected>");
-                if ((msg_id = esp_mqtt_client_publish(client, topic_robot_register_id, CONFIG_ROBOT_IDD, 0, 0, 0)) == ESP_FAIL)
+                ESP_LOGE(TAG, "error in subscribe topic, msg_id=%d", msg_id);
+                break;
+            }
+
+            if ((msg_id = esp_mqtt_client_subscribe(client, topic_robot_register, 0)) == ESP_FAIL)
+            {
+                ESP_LOGE(TAG, "error in subscribe topic, msg_id=%d", msg_id);
+                break;
+            }
+            break;
+        }
+
+        case MQTT_EVENT_DATA:
+        {
+            //ESP_LOGI(TAG, "MQTT_CLIENT <data>");
+            if (strncmp(topic_receive_setpoint, event->topic, strlen(topic_receive_setpoint)) == 0)
+            {
+                if (process_robot_feedback(event->data, &motor_values) != ESP_OK)
                 {
-                    ESP_LOGE(TAG, "error in enqueue msg, msg_id=%d", msg_id);
+                    ESP_LOGW(TAG, "invalid new setpoint data");
                     break;
                 }
-
-                if ((msg_id = esp_mqtt_client_subscribe(client, topic_receive_setpoint, 0)) == ESP_FAIL)
+                forward_robot_feedback(receive_queue, &motor_values);
+            }
+            else if (strncmp(topic_robot_register, event->topic, strlen(topic_robot_register)) == 0)
+            {
+                register_status = register_robot(event->data, robot_name);
+                if (register_status == ESP_FAIL)
                 {
-                    ESP_LOGE(TAG, "error in subscribe topic, msg_id=%d", msg_id);
+                    ESP_LOGW(TAG, "invalid register data");
                     break;
                 }
-                break;
-            }
-
-            case MQTT_EVENT_DISCONNECTED:
-            {
-                ESP_LOGI(TAG, "MQTT_CLIENT <disconnected>");
-                break;
-            }
-
-            case MQTT_EVENT_PUBLISHED:
-            {
-                //ESP_LOGI(TAG, "MQTT_CLIENT <published> msg_id=%d", event->msg_id);
-                break;
-            }
-
-            case MQTT_EVENT_SUBSCRIBED:
-            {
-                ESP_LOGI(TAG, "MQTT_CLIENT <subscribed>");
-                break;
-            }
-
-            case MQTT_EVENT_UNSUBSCRIBED:
-            {
-                ESP_LOGI(TAG, "MQTT_CLIENT <unsubscribed>");
-                break;
-            }
-
-            case MQTT_EVENT_ERROR:
-            {
-                //ESP_LOGI(TAG, "MQTT_CLIENT <error>");
-                if (event->error_handle->error_type == MQTT_ERROR_TYPE_TCP_TRANSPORT)
+                else if(register_status == 15)
                 {
-                    if (event->error_handle->esp_tls_last_esp_err != 0) {ESP_LOGE(TAG, "Last error <reported from esp-tls: 0x%x>", event->error_handle->esp_tls_last_esp_err);}
-                    if (event->error_handle->esp_tls_stack_err != 0) {ESP_LOGE(TAG, "Last error <reported from tls stack: 0x%x>", event->error_handle->esp_tls_stack_err);}
-                    if (event->error_handle->esp_transport_sock_errno != 0) {ESP_LOGE(TAG, "Last error <captured as transport's socket errno: 0x%x>", event->error_handle->esp_transport_sock_errno);}
-                    //ESP_LOGI(TAG, "Last errno string (%s)", strerror(event->error_handle->esp_transport_sock_errno));
+                    send_mqtt_register_request();
                 }
-                break;
+                ESP_LOGI(TAG, "registered with name <%s>", robot_name);
             }
+            break;
+        }
 
-            case MQTT_EVENT_DATA:
+        case MQTT_EVENT_ERROR:
+        {
+            if (event->error_handle->error_type == MQTT_ERROR_TYPE_TCP_TRANSPORT)
             {
-                //ESP_LOGI(TAG, "MQTT_CLIENT <data>");
-                if (strcmp(topic_receive_setpoint, event->topic))
-                {
-                    if (process_robot_feedback(event->data, &motor_values) == ESP_OK)
-                    {
-                        forward_robot_feedback(receive_queue, &motor_values);
-                    }
-                    else
-                    {
-                        ESP_LOGW(TAG, "MQTT_CLIENT invalid new setpoint data");
-                    }
-                }
-                break;
+                if (event->error_handle->esp_tls_last_esp_err != 0) {ESP_LOGE(TAG, "Last error <reported from esp-tls: 0x%x>", event->error_handle->esp_tls_last_esp_err);}
+                if (event->error_handle->esp_tls_stack_err != 0) {ESP_LOGE(TAG, "Last error <reported from tls stack: 0x%x>", event->error_handle->esp_tls_stack_err);}
+                if (event->error_handle->esp_transport_sock_errno != 0) {ESP_LOGE(TAG, "Last error <captured as transport's socket errno: 0x%x>", event->error_handle->esp_transport_sock_errno);}
+                //ESP_LOGI(TAG, "Last errno string (%s)", strerror(event->error_handle->esp_transport_sock_errno));
             }
+            break;
+        }
 
-            default:
-            {
-                //ESP_LOGI(TAG, "Other event id:%d", event->event_id);
-                break;
-            }
-    }
-}
-
-void send_log(void)
-{
-    if (esp_mqtt_client_publish(client, topic_robot_register_id, "OK", 0, 0, 0) == ESP_FAIL)
-    {
-        ESP_LOGE(TAG, "error in enqueue msg");
+        case MQTT_EVENT_DISCONNECTED:
+        case MQTT_EVENT_PUBLISHED:
+        case MQTT_EVENT_SUBSCRIBED:
+        case MQTT_EVENT_UNSUBSCRIBED:
+        default:
+        {
+            //ESP_LOGI(TAG, "Other event id:%d", event->event_id);
+            break;
+        }
     }
 }
 
@@ -135,7 +115,7 @@ void send_mqtt_feedback(float velocidades_lineales_reales[VELOCITY_VECTOR_SIZE],
 
     if (esp_mqtt_client_publish(client, topic_robot_feedback, buffer, 0, 0, 0) == ESP_FAIL)
     {
-        ESP_LOGE(TAG, "error in enqueue msg");
+        ESP_LOGE(TAG, "error in publish msg");
     }
 }
 
@@ -146,7 +126,18 @@ void send_mqtt_status_path_done()
 
     if (esp_mqtt_client_publish(client, topic_robot_feedback, buffer, 0, 0, 0) == ESP_FAIL)
     {
-        ESP_LOGE(TAG, "error in enqueue msg");
+        ESP_LOGE(TAG, "error in publish msg");
+    }
+}
+
+void send_mqtt_register_request()
+{
+    char buffer[16];
+    sprintf(buffer, "{\"robot_id\":0}");
+
+    if (esp_mqtt_client_publish(client, topic_robot_register, buffer, 0, 0, 0) == ESP_FAIL)
+    {
+        ESP_LOGE(TAG, "error in publish msg");
     }
 }
 
@@ -171,15 +162,10 @@ int process_robot_feedback(const char *data, movement_vector_t *motor_values)
     if (data_json == NULL)
     {
         const char *error_ptr = cJSON_GetErrorPtr();
-        //if (error_ptr != NULL)
-        {
-            ESP_LOGE(TAG, "error in obtain velocities, error=%s", error_ptr);
-        }
+        ESP_LOGE(TAG, "error in obtain velocities, error=%s", error_ptr);
         status = ESP_FAIL;
         goto end;
     }
-
-    //ESP_LOGI(TAG, "MQTT_CLIENT processing feedback");
 
     setpoint = cJSON_GetObjectItemCaseSensitive(data_json, "distance");
     if (!cJSON_IsNumber(setpoint))
@@ -216,4 +202,77 @@ int process_robot_feedback(const char *data, movement_vector_t *motor_values)
     end:
         cJSON_Delete(data_json);
         return status;
+}
+
+int register_robot(const char *data, char *robot_name)
+{
+    const cJSON *json_robot_name = NULL;
+    const cJSON *robot_id = NULL;
+    const cJSON *status = NULL;
+    int json_parse_status;
+    cJSON *data_json;
+
+    data_json = cJSON_Parse(data);
+    if (data_json == NULL)
+    {
+        const char *error_ptr = cJSON_GetErrorPtr();
+        ESP_LOGE(TAG, "error in register robot, error=%s", error_ptr);
+        json_parse_status = ESP_FAIL;
+        goto end;
+    }
+
+    status = cJSON_GetObjectItemCaseSensitive(data_json, "status");
+    robot_id = cJSON_GetObjectItemCaseSensitive(data_json, "robot_id");
+    json_robot_name = cJSON_GetObjectItemCaseSensitive(data_json, "robot_name");
+
+    if(status != NULL)
+    {
+        if (!cJSON_IsNumber(status))
+        {
+            json_parse_status = ESP_FAIL;
+            goto end;
+        }
+
+        if(status->valuedouble != 15)
+        {
+            ESP_LOGE(TAG, "expected register value 15");
+            json_parse_status = ESP_FAIL;
+            goto end;
+        }
+
+        json_parse_status = 15;
+        goto end;
+    }
+
+    if(robot_id != NULL)
+    {
+        if (!cJSON_IsNumber(robot_id))
+        {
+            json_parse_status = ESP_FAIL;
+            goto end;
+        }
+
+        if(robot_id->valuedouble != 0)
+        {
+            ESP_LOGE(TAG, "expected robot id 0");
+            json_parse_status = ESP_FAIL;
+            goto end;
+        }
+    }
+
+    if(robot_name != NULL)
+    {
+        if (!cJSON_IsString(json_robot_name))
+        {
+            json_parse_status = ESP_FAIL;
+            goto end;
+        }
+        strncpy(robot_name, json_robot_name->valuestring, 8); // FIXME max largo nombre robot 8 chars
+    }
+
+    json_parse_status = ESP_OK;
+
+    end:
+        cJSON_Delete(data_json);
+        return json_parse_status;
 }
