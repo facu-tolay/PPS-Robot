@@ -161,7 +161,6 @@ void task_motor(void *arg)
                     master_feedback.distance = 0;
                     xQueueSend(master_task_feedback, &master_feedback, 0);
                 }
-
             }
 
             // calculate new PID value and set motor speed
@@ -228,7 +227,7 @@ void master_task(void *arg)
     TickType_t current_tick                                 = 0;
     float desired_setpoint                                  = 0;
     float velocidades_angulares_motores[MOTOR_TASK_COUNT]   = {0};
-    float velocidad_angular_compensacion[MOTOR_TASK_COUNT]  = {0};
+    float velocidad_angular_compensacion_ruedas[MOTOR_TASK_COUNT]  = {0};
     float velocidad_angular_compensada[MOTOR_TASK_COUNT]    = {0};
 
     uint8_t state = ST_MT_INIT;
@@ -369,9 +368,8 @@ void master_task(void *arg)
         {
             case ST_MT_INIT:
             {
-                vTaskDelay(100);
                 gpio_set_level(GPIO_READY_LED, 1);
-                vTaskDelay(50);
+                vTaskDelay(250);
                 gpio_set_level(GPIO_READY_LED, 0);
                 vTaskDelay(50);
                 gpio_set_level(GPIO_ENABLE_MOTORS, 1);
@@ -473,6 +471,7 @@ void master_task(void *arg)
             {
                 // Obtencion de las velocidades lineales reales a partir de las RPM
                 calculo_matriz_cinematica_directa(rpm_average_array, velocidades_lineales_reales);
+                ESP_LOGI(TAG, "veloc lineales reales: %2.3f / %2.3f / %2.3f", velocidades_lineales_reales[0], velocidades_lineales_reales[1], velocidades_lineales_reales[2]);
 
                 // calculo de odometria
                 current_tick = xTaskGetTickCount();
@@ -501,26 +500,26 @@ void master_task(void *arg)
                     xQueueSend(master_task_motor_C_rcv_queue, &motor_C_data, 0);
                     xQueueSend(master_task_motor_D_rcv_queue, &motor_D_data, 0);
 
+                    send_mqtt_feedback(velocidades_lineales_reales, delta_distance);
                     send_mqtt_status_path_done();
 
                     state = ST_MT_IDLE;
                     break;
                 }
 
-                //float resultante = sqrt((pow(velocidades_lineales_reales[0], 2) + pow(velocidades_lineales_reales[1], 2)));
-                //float angulo = asin(velocidades_lineales_reales[1] / resultante) * 180/M_PI;
-                ESP_LOGI(TAG, "veloc lineales reales: %2.3f / %2.3f / %2.3f\n", velocidades_lineales_reales[0], velocidades_lineales_reales[1], velocidades_lineales_reales[2]);
-
-                calculo_compensacion_linea_magnetica(velocidades_lineales[2], velocidades_lineales_reales, line_follower_count);
+                //calculo_compensacion_linea_magnetica(velocidades_lineales[2], velocidades_lineales_reales, line_follower_count); // FIXME descomentar cuando se finalicen las pruebas
                 calculo_error_velocidades_lineales(velocidades_lineales, velocidades_lineales_reales, delta_velocidad_lineal);
-                calculo_matriz_cinematica_inversa(delta_velocidad_lineal, velocidad_angular_compensacion);
+                calculo_matriz_cinematica_inversa(delta_velocidad_lineal, velocidad_angular_compensacion_ruedas);
 
                 linef_hysteresis_count++;
 
                 for(int i=0; i<MOTOR_TASK_COUNT; i++)
                 {
-                    velocidad_angular_compensada[i] = rpm_queue[i].rpm - velocidad_angular_compensacion[i]; // FIXME verificar si esta bien que se reste en lugar de sumar
+                    //velocidad_angular_compensada[i] = rpm_queue[i].rpm - velocidad_angular_compensacion_ruedas[i]; // FIXME verificar si esta bien que se reste en lugar de sumar
+                    velocidad_angular_compensada[i] = rpm_queue[i].rpm + velocidad_angular_compensacion_ruedas[i]; // FIXME verificar si esta bien que se reste en lugar de sumar
+                    ESP_LOGI(TAG, "vel angular rueda %d | antes %2.3f | despues %2.3f", i, rpm_queue[i].rpm, velocidad_angular_compensada[i]);
                 }
+                ESP_LOGI(TAG, "-------\n");
 
                 motor_A_data.rpm = velocidad_angular_compensada[0];
                 motor_A_data.setpoint = -1;

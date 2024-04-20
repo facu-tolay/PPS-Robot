@@ -115,8 +115,11 @@ void calculo_error_velocidades_lineales(float *velocidad_lineal, float *velocida
 {
     for(int i=0; i<3; i++)
     {
-        delta_velocidad_lineal[i] = velocidad_lineal_real[i] - velocidad_lineal[i];
+        //delta_velocidad_lineal[i] = velocidad_lineal_real[i] - velocidad_lineal[i];
+        delta_velocidad_lineal[i] = velocidad_lineal[i] - velocidad_lineal_real[i];
     }
+
+    ESP_LOGI("KINEMATICS", "delta vel_real/vel_deseada: vx=%2.3f, vy=%2.3f, vr=%2.3f", delta_velocidad_lineal[0], delta_velocidad_lineal[1], delta_velocidad_lineal[2]);
 }
 
 void calculo_distancia_recorrida_acumulada(float *velocidad_lineal_real, float delta_t, float *distancia_accum, float *delta_distance)

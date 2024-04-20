@@ -14,6 +14,7 @@
 #include "freertos/task.h"
 #include "freertos/FreeRTOSConfig.h"
 #include "freertos/queue.h"
+#include "esp_log.h"
 #include "../../main/constants.h"
 
 #pragma pack(push, 1)
