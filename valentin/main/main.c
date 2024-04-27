@@ -134,8 +134,6 @@ void task_motor(void *arg)
     float desired_rpm = 0;
     uint8_t motor_direction = 0;
     uint8_t last_motor_direction = 0;
-    int16_t objective_count = 0;
-    int16_t count_sum = 0;
     uint16_t measure_count = 0;
     float objective_distance = 0;
     float distance_accum = 0;
@@ -180,6 +178,7 @@ void task_motor(void *arg)
 
             rpm = (hold_up_count / CANT_RANURAS_ENCODER) * (1.0 / (measure_count * TIMER_INTERVAL_RPM_MEASURE)) * 60.0;
             rpm = (motor_direction == DIRECTION_CW) ? rpm : -rpm;
+            distance_accum += pulse_count_event.pulses_count * DELTA_DISTANCE_PER_SLIT;
             // ---------- new boy in town ------------
 
 
@@ -196,10 +195,9 @@ void task_motor(void *arg)
             }
 
             // calculate distance setpoint
-            count_sum += pulse_count_event.pulses_count;
-            if(count_sum >= objective_count)
+            if(distance_accum >= objective_distance)
             {
-                count_sum = objective_count;
+                distance_accum = objective_distance;
 
                 memset(rpm_buffer, 0, sizeof(rpm_buffer));
                 rpm_index = 0;
@@ -246,11 +244,8 @@ void task_motor(void *arg)
 
             if(new_setpoint.setpoint >= 0)
             {
-                objective_count = new_setpoint.setpoint / DELTA_DISTANCE_PER_SLIT;
                 objective_distance = new_setpoint.setpoint + 0.3;
-
                 measure_count = 0;
-                count_sum = 0;
                 distance_accum = 0;
 
                 memset(rpm_buffer, 0, sizeof(rpm_buffer));
