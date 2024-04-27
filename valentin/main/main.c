@@ -138,47 +138,64 @@ void task_motor(void *arg)
     float objective_distance = 0;
     float distance_accum = 0;
 
+    rpm_task_queue_t rpm_measure_item;
+    xQueueHandle motor_task_receive_rpm_measure_queue;
+    motor_task_receive_rpm_measure_queue = xQueueCreate(1, sizeof(rpm_task_queue_t));
+
+    rpm_task_parameters_t rpm_task_parameters = {
+        .output_rpm_queue = &motor_task_receive_rpm_measure_queue,
+        .input_interrupt_encoder_queue = task_params->rpm_count_rcv_queue
+    };
+
+    char rpm_task_name[10];
+    sprintf(rpm_task_name, "rpm_%s", task_params->task_name);
+    xTaskCreate(rpm_measure, rpm_task_name, 2048, (void *)&rpm_task_parameters, 9, NULL);
+
      while (1)
      {
         vTaskDelay(1);
 
         // receive from interrupt (wheel encoder)
-        if(xQueueReceive(*(task_params->rpm_count_rcv_queue), &pulse_count_event, 0) == pdTRUE)
+        //if(xQueueReceive(*(task_params->rpm_count_rcv_queue), &pulse_count_event, 0) == pdTRUE)
+        if(xQueueReceive(motor_task_receive_rpm_measure_queue, &rpm_measure_item, 0) == pdTRUE)
         {
             // ---------- new boy in town ------------
-            pulses_buffer[pulses_buffer_write_index] = pulse_count_event.pulses_count;
-            pulses_buffer_read_index = pulses_buffer_write_index;
-            pulses_buffer_write_index = (pulses_buffer_write_index + 1) % RPM_PULSES_BUFFER_SIZE;
+            // pulses_buffer[pulses_buffer_write_index] = pulse_count_event.pulses_count;
+            // pulses_buffer_read_index = pulses_buffer_write_index;
+            // pulses_buffer_write_index = (pulses_buffer_write_index + 1) % RPM_PULSES_BUFFER_SIZE;
 
-            hold_up_count = 0;
-            measure_count = 0;
+            // hold_up_count = 0;
+            // measure_count = 0;
 
-            if(pulse_count_event.pulses_count <= RPM_PULSES_MIN)
-            {
-                measure_count = 5;
-            }
-            else if(pulse_count_event.pulses_count > RPM_PULSES_MIN && pulse_count_event.pulses_count <= RPM_PULSES_MED)
-            {
-                measure_count = 5;
-            }
-            else if(pulse_count_event.pulses_count > RPM_PULSES_MED && pulse_count_event.pulses_count <= RPM_PULSES_MAX)
-            {
-                measure_count = 1;
-            }
-            else if(pulse_count_event.pulses_count > RPM_PULSES_MAX)
-            {
-                measure_count = 1;
-            }
+            // if(pulse_count_event.pulses_count <= RPM_PULSES_MIN)
+            // {
+            //     measure_count = 5;
+            // }
+            // else if(pulse_count_event.pulses_count > RPM_PULSES_MIN && pulse_count_event.pulses_count <= RPM_PULSES_MED)
+            // {
+            //     measure_count = 5;
+            // }
+            // else if(pulse_count_event.pulses_count > RPM_PULSES_MED && pulse_count_event.pulses_count <= RPM_PULSES_MAX)
+            // {
+            //     measure_count = 1;
+            // }
+            // else if(pulse_count_event.pulses_count > RPM_PULSES_MAX)
+            // {
+            //     measure_count = 1;
+            // }
 
-            for(int i=0; i<measure_count; i++)
-            {
-                hold_up_count += pulses_buffer[(RPM_PULSES_BUFFER_SIZE + pulses_buffer_read_index) % RPM_PULSES_BUFFER_SIZE];
-                pulses_buffer_read_index = pulses_buffer_read_index - 1;
-            }
+            // for(int i=0; i<measure_count; i++)
+            // {
+            //     hold_up_count += pulses_buffer[(RPM_PULSES_BUFFER_SIZE + pulses_buffer_read_index) % RPM_PULSES_BUFFER_SIZE];
+            //     pulses_buffer_read_index = pulses_buffer_read_index - 1;
+            // }
 
-            rpm = (hold_up_count / CANT_RANURAS_ENCODER) * (1.0 / (measure_count * TIMER_INTERVAL_RPM_MEASURE)) * 60.0;
+            // rpm = (hold_up_count / CANT_RANURAS_ENCODER) * (1.0 / (measure_count * TIMER_INTERVAL_RPM_MEASURE)) * 60.0;
+
+            rpm = rpm_measure_item.rpm;
             rpm = (motor_direction == DIRECTION_CW) ? rpm : -rpm;
-            distance_accum += pulse_count_event.pulses_count * DELTA_DISTANCE_PER_SLIT;
+            //distance_accum += pulse_count_event.pulses_count * DELTA_DISTANCE_PER_SLIT;
+            distance_accum += rpm_measure_item.delta_distance;
             // ---------- new boy in town ------------
 
 
