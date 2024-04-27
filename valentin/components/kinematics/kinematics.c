@@ -8,6 +8,7 @@
 #include "kinematics.h"
 
 float desplazamiento_accum[VELOCITY_VECTOR_SIZE] = {0};
+float desplazamiento_rot_accum = 0;
 
 
 /*
@@ -127,15 +128,16 @@ void calculo_distancia_recorrida_acumulada(float *velocidad_lineal_real, float d
         desplazamiento_accum[i] = desplazamiento_accum[i] + delta_distance[i];
         distancia_accum[i] = desplazamiento_accum[i];
     }
+    desplazamiento_rot_accum = desplazamiento_rot_accum + velocidad_lineal_real[2] * delta_t;
 }
 
-void calculo_compensacion_linea_magnetica(float velocidad_rotacional, float velocidades_lineales_reales[VELOCITY_VECTOR_SIZE], int line_follower_count[HALL_SENSOR_COUNT])
+void calculo_compensacion_linea_magnetica(uint8_t is_velocidad_rotacional_zero, float velocidades_lineales_reales[VELOCITY_VECTOR_SIZE], int line_follower_count[HALL_SENSOR_COUNT])
 {
     for(int i=0; i<HALL_SENSOR_COUNT; i++)
     {
         if ((i == 0 || i == 2) && line_follower_count[i] != 0)
         {
-            if(velocidad_rotacional != 0)
+            if(!is_velocidad_rotacional_zero)
             {
                 if(i==0)
                 {
@@ -161,8 +163,17 @@ void calculo_compensacion_linea_magnetica(float velocidad_rotacional, float velo
     }
 }
 
+void calculo_rompensacion_rotacional(float velocidades_lineales_reales[VELOCITY_VECTOR_SIZE])
+{
+    if(desplazamiento_rot_accum != 0)
+    {
+        velocidades_lineales_reales[2] = velocidades_lineales_reales[2] + (desplazamiento_rot_accum * 1.5); // se compensa la rotacion en base a cuanto desplazamiento rotacional se detecte
+    }
+}
+
 void reset_accum()
 {
+    desplazamiento_rot_accum = 0;
     for (int i=0; i<VELOCITY_VECTOR_SIZE; i++)
     {
         desplazamiento_accum[i] = 0;
