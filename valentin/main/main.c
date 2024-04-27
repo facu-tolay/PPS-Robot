@@ -117,24 +117,17 @@ void task_motor(void *arg)
         .output = 0
     };
 
-    encoder_event_t pulse_count_event;
     motor_movement_vector_t new_setpoint;
 
     // for RPM calculation
     float rpm = 0;
-    int16_t hold_up_count = 0;
-
     uint8_t rpm_index = 0;
-    uint8_t pulses_buffer[RPM_PULSES_BUFFER_SIZE] = {0};
-    uint8_t pulses_buffer_write_index = 0;
-    signed int pulses_buffer_read_index = 0;
     float rpm_buffer[RPM_BUFFER_SIZE];
 
-    // aux variables
+    // variables for movement
     float desired_rpm = 0;
     uint8_t motor_direction = 0;
     uint8_t last_motor_direction = 0;
-    uint16_t measure_count = 0;
     float objective_distance = 0;
     float distance_accum = 0;
 
@@ -222,7 +215,6 @@ void task_motor(void *arg)
             if(new_setpoint.setpoint >= 0)
             {
                 objective_distance = new_setpoint.setpoint + 0.3;
-                measure_count = 0;
                 distance_accum = 0;
 
                 memset(rpm_buffer, 0, sizeof(rpm_buffer));
@@ -471,6 +463,10 @@ void master_task(void *arg)
 
                                             state = ST_MT_CALC_RPM_COMP;
                                         }
+                                    }
+                                    else
+                                    {
+                                        ESP_LOGW(TAG, "<%s> tried to store but busy", tasks_status[i].task_name);
                                     }
                                     break;
                                 }
