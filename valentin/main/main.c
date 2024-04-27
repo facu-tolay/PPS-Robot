@@ -37,114 +37,67 @@ esp_mqtt_client_handle_t mqtt_client;
 int wifi_flag = 1;
 static const char *TAG = "master_task";
 
-// void rpm_measure(void *arg)
-// {
-//     rpm_task_parameters_t *rpm_task_parameters = (rpm_task_parameters_t *) arg;
+void rpm_measure(void *arg)
+{
+    rpm_task_parameters_t *rpm_task_parameters = (rpm_task_parameters_t *) arg;
 
-//     xQueueHandle receive_pulse_count_encoder_queue = *(rpm_task_parameters->input_interrupt_encoder_queue);
-//     xQueueHandle send_rpm_queue = *(rpm_task_parameters->output_rpm_queue);
-//     encoder_event_t pulse_count_event;
+    xQueueHandle receive_pulse_count_encoder_queue = *(rpm_task_parameters->input_interrupt_encoder_queue);
+    xQueueHandle send_rpm_queue = *(rpm_task_parameters->output_rpm_queue);
+    encoder_event_t pulse_count_event;
 
-//     uint8_t pulses_buffer[RPM_PULSES_BUFFER_SIZE] = {0};
-//     uint8_t pulses_buffer_write_index = 0;
-//     int8_t pulses_buffer_read_index = 0;
+    uint8_t pulses_buffer[RPM_PULSES_BUFFER_SIZE] = {0};
+    uint8_t pulses_buffer_write_index = 0;
+    int8_t pulses_buffer_read_index = 0;
 
-//     rpm_task_queue_t rpm_measure_item;
+    rpm_task_queue_t rpm_measure_item;
 
-//     int16_t hold_up_count = 0;
-//     uint16_t measure_count = 0;
+    int16_t hold_up_count = 0;
+    uint16_t measure_count = 0;
 
-//     while(1)
-//     {
-//         vTaskDelay(1);
+    while(1)
+    {
+        vTaskDelay(1);
 
-//         // if(xQueueReceive(*receive_pulse_count_encoder_queue, &pulse_count_event, 0) == pdTRUE)
-//         // {
-//         //     pulses_buffer[(pulses_buffer_write_index++)%RPM_PULSES_BUFFER_SIZE] = pulse_count_event.pulses_count;
-//         //     pulses_buffer_read_index = pulses_buffer_write_index;
+        if(xQueueReceive(receive_pulse_count_encoder_queue, &pulse_count_event, 0) == pdTRUE)
+        {
+            pulses_buffer[pulses_buffer_write_index] = pulse_count_event.pulses_count;
+            pulses_buffer_read_index = pulses_buffer_write_index;
+            pulses_buffer_write_index = (pulses_buffer_write_index + 1) % RPM_PULSES_BUFFER_SIZE;
 
-//         //     if(pulse_count_event.pulses_count <= RPM_PULSES_MIN)
-//         //     {
-//         //         measure_count = 3;
-//         //         for(int i=0; i<3; i++)
-//         //         {
-//         //             hold_up_count += pulses_buffer[(RPM_PULSES_BUFFER_SIZE + pulses_buffer_read_index) % RPM_PULSES_BUFFER_SIZE];
-//         //             pulses_buffer_read_index = pulses_buffer_read_index - 1;
-//         //         }
-//         //     }
-//         //     else if(pulse_count_event.pulses_count > RPM_PULSES_MIN && pulse_count_event.pulses_count <= RPM_PULSES_MED)
-//         //     {
-//         //         measure_count = 2;
-//         //         for(int i=0; i<2; i++)
-//         //         {
-//         //             hold_up_count += pulses_buffer[(RPM_PULSES_BUFFER_SIZE + pulses_buffer_read_index) % RPM_PULSES_BUFFER_SIZE];
-//         //             pulses_buffer_read_index = pulses_buffer_read_index - 1;
-//         //         }
-//         //     }
-//         //     else if(pulse_count_event.pulses_count > RPM_PULSES_MED && pulse_count_event.pulses_count <= RPM_PULSES_MAX)
-//         //     {
-//         //         measure_count = 1;
-//         //         hold_up_count += pulses_buffer[(RPM_PULSES_BUFFER_SIZE + pulses_buffer_read_index) % RPM_PULSES_BUFFER_SIZE];
-//         //     }
-//         //     else if(pulse_count_event.pulses_count > RPM_PULSES_MAX)
-//         //     {
-//         //         measure_count = 1;
-//         //         hold_up_count += pulses_buffer[(RPM_PULSES_BUFFER_SIZE + pulses_buffer_read_index) % RPM_PULSES_BUFFER_SIZE];
-//         //     }
+            hold_up_count = 0;
+            measure_count = 0;
 
-//         //     // calculate RPM
-//         //     rpm = (hold_up_count/CANT_RANURAS_ENCODER) * (1.0/(measure_count*TIMER_INTERVAL_RPM_MEASURE)) * 60.0;// rpm
-//         //     rpm = motor_direction == DIRECTION_CW ? rpm : -rpm;
-//         //     hold_up_count = 0;
-//         //     measure_count = 0;
-//         // }
+            if(pulse_count_event.pulses_count <= RPM_PULSES_MIN)
+            {
+                measure_count = 5;
+            }
+            else if(pulse_count_event.pulses_count > RPM_PULSES_MIN && pulse_count_event.pulses_count <= RPM_PULSES_MED)
+            {
+                measure_count = 5;
+            }
+            else if(pulse_count_event.pulses_count > RPM_PULSES_MED && pulse_count_event.pulses_count <= RPM_PULSES_MAX)
+            {
+                measure_count = 1;
+            }
+            else if(pulse_count_event.pulses_count > RPM_PULSES_MAX)
+            {
+                measure_count = 1;
+            }
 
-//         // NEW VERSION
-//         if(xQueueReceive(receive_pulse_count_encoder_queue, &pulse_count_event, 0) == pdTRUE)
-//         {
-//             pulses_buffer[pulses_buffer_write_index] = pulse_count_event.pulses_count;
-//             pulses_buffer_read_index = pulses_buffer_write_index;
-//             pulses_buffer_write_index = (pulses_buffer_write_index + 1) % RPM_PULSES_BUFFER_SIZE;
+            for(int i=0; i<measure_count; i++)
+            {
+                hold_up_count += pulses_buffer[(RPM_PULSES_BUFFER_SIZE + pulses_buffer_read_index) % RPM_PULSES_BUFFER_SIZE];
+                pulses_buffer_read_index = pulses_buffer_read_index - 1;
+            }
 
-//             // pulses_buffer_read_index = pulses_buffer_write_index;
-//             // pulses_buffer_write_index = pulses_buffer_write_index % RPM_PULSES_BUFFER_SIZE;
-//             // pulses_buffer[pulses_buffer_write_index] = pulse_count_event.pulses_count;
-//             // pulses_buffer_write_index = pulses_buffer_write_index + 1;
+            rpm_measure_item.rpm = (hold_up_count / CANT_RANURAS_ENCODER) * (1.0 / (measure_count * TIMER_INTERVAL_RPM_MEASURE)) * 60.0;
+            rpm_measure_item.delta_distance = pulse_count_event.pulses_count * DELTA_DISTANCE_PER_SLIT;
 
-//             hold_up_count = 0;
-//             measure_count = 0;
-
-//             if(pulse_count_event.pulses_count <= RPM_PULSES_MIN)
-//             {
-//                 measure_count = 5;
-//             }
-//             else if(pulse_count_event.pulses_count > RPM_PULSES_MIN && pulse_count_event.pulses_count <= RPM_PULSES_MED)
-//             {
-//                 measure_count = 5;
-//             }
-//             else if(pulse_count_event.pulses_count > RPM_PULSES_MED && pulse_count_event.pulses_count <= RPM_PULSES_MAX)
-//             {
-//                 measure_count = 1;
-//             }
-//             else if(pulse_count_event.pulses_count > RPM_PULSES_MAX)
-//             {
-//                 measure_count = 1;
-//             }
-
-//             for(int i=0; i<measure_count; i++)
-//             {
-//                 hold_up_count += pulses_buffer[(RPM_PULSES_BUFFER_SIZE + pulses_buffer_read_index) % RPM_PULSES_BUFFER_SIZE];
-//                 pulses_buffer_read_index = pulses_buffer_read_index - 1;
-//             }
-
-//             rpm_measure_item.rpm = (hold_up_count / CANT_RANURAS_ENCODER) * (1.0 / (measure_count * TIMER_INTERVAL_RPM_MEASURE)) * 60.0;
-//             rpm_measure_item.delta_distance = pulse_count_event.pulses_count * DELTA_DISTANCE_PER_SLIT;
-
-//             //ESP_LOGI("RPM_TASK", "rpm calculated = <%3.3f> | delta_distance = <%3.3f>", rpm_measure_item.rpm, rpm_measure_item.delta_distance);
-//             xQueueSend(send_rpm_queue, &rpm_measure_item, 0);
-//         }
-//     }
-// }
+            //ESP_LOGI("RPM_TASK", "rpm calculated = <%3.3f> | delta_distance = <%3.3f>", rpm_measure_item.rpm, rpm_measure_item.delta_distance);
+            xQueueSend(send_rpm_queue, &rpm_measure_item, 0);
+        }
+    }
+}
 
 void task_motor(void *arg)
 {
