@@ -155,51 +155,12 @@ void task_motor(void *arg)
      {
         vTaskDelay(1);
 
-        // receive from interrupt (wheel encoder)
-        //if(xQueueReceive(*(task_params->rpm_count_rcv_queue), &pulse_count_event, 0) == pdTRUE)
         if(xQueueReceive(motor_task_receive_rpm_measure_queue, &rpm_measure_item, 0) == pdTRUE)
         {
-            // ---------- new boy in town ------------
-            // pulses_buffer[pulses_buffer_write_index] = pulse_count_event.pulses_count;
-            // pulses_buffer_read_index = pulses_buffer_write_index;
-            // pulses_buffer_write_index = (pulses_buffer_write_index + 1) % RPM_PULSES_BUFFER_SIZE;
-
-            // hold_up_count = 0;
-            // measure_count = 0;
-
-            // if(pulse_count_event.pulses_count <= RPM_PULSES_MIN)
-            // {
-            //     measure_count = 5;
-            // }
-            // else if(pulse_count_event.pulses_count > RPM_PULSES_MIN && pulse_count_event.pulses_count <= RPM_PULSES_MED)
-            // {
-            //     measure_count = 5;
-            // }
-            // else if(pulse_count_event.pulses_count > RPM_PULSES_MED && pulse_count_event.pulses_count <= RPM_PULSES_MAX)
-            // {
-            //     measure_count = 1;
-            // }
-            // else if(pulse_count_event.pulses_count > RPM_PULSES_MAX)
-            // {
-            //     measure_count = 1;
-            // }
-
-            // for(int i=0; i<measure_count; i++)
-            // {
-            //     hold_up_count += pulses_buffer[(RPM_PULSES_BUFFER_SIZE + pulses_buffer_read_index) % RPM_PULSES_BUFFER_SIZE];
-            //     pulses_buffer_read_index = pulses_buffer_read_index - 1;
-            // }
-
-            // rpm = (hold_up_count / CANT_RANURAS_ENCODER) * (1.0 / (measure_count * TIMER_INTERVAL_RPM_MEASURE)) * 60.0;
-
             rpm = rpm_measure_item.rpm;
             rpm = (motor_direction == DIRECTION_CW) ? rpm : -rpm;
-            //distance_accum += pulse_count_event.pulses_count * DELTA_DISTANCE_PER_SLIT;
             distance_accum += rpm_measure_item.delta_distance;
-            // ---------- new boy in town ------------
 
-
-            // store RPM into buffer for calculating average
             if(master_feedback.status == TASK_STATUS_WORKING)
             {
                 rpm_buffer[rpm_index++] = rpm;
@@ -227,7 +188,6 @@ void task_motor(void *arg)
                     master_feedback.average_rpm = 0;
                     xQueueSend(master_task_feedback, &master_feedback, 0);
                 }
-
             }
 
             // calculate new PID value and set motor speed
