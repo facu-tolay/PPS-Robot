@@ -351,7 +351,7 @@ void task_motor(void *arg)
     };
 
     encoder_event_t pulse_count_event;
-    motor_movement_vector_t motor_movement_vector;
+    motor_movement_vector_t new_setpoint;
 
     // for RPM calculation
     float rpm = 0;
@@ -372,6 +372,8 @@ void task_motor(void *arg)
     int16_t prev_count_sum = 0;
     int16_t delta_count_sum = 0;
     uint16_t measure_count = 0;
+    float objective_distance = 0;
+    float distance_accum = 0;
 
      while (1)
      {
@@ -513,9 +515,9 @@ void task_motor(void *arg)
         }
 
         // receive new pid_params from master task
-        if(xQueueReceive(*(task_params->master_queue_rcv), &motor_movement_vector, 0) == pdTRUE)
+        if(xQueueReceive(*(task_params->master_queue_rcv), &new_setpoint, 0) == pdTRUE)
         {
-            desired_rpm = motor_movement_vector.rpm;
+            desired_rpm = new_setpoint.rpm;
             motor_direction = desired_rpm > 0? DIRECTION_CW : DIRECTION_CCW;
 
             if(last_motor_direction != motor_direction)
@@ -524,17 +526,19 @@ void task_motor(void *arg)
                 last_motor_direction = motor_direction;
             }
 
-            if(motor_movement_vector.setpoint >= 0)
+            if(new_setpoint.setpoint >= 0)
             {
-                objective_count = motor_movement_vector.setpoint / DELTA_DISTANCE_PER_SLIT;
+                objective_count = new_setpoint.setpoint / DELTA_DISTANCE_PER_SLIT;
+                objective_distance = new_setpoint.setpoint + 0.3;
 
                 measure_count = 0;
                 count_sum = 0;
+                distance_accum = 0;
 
                 memset(rpm_buffer, 0, sizeof(rpm_buffer));
                 rpm_index = 0;
 
-                if(motor_movement_vector.setpoint != 0)
+                if(new_setpoint.setpoint != 0)
                 {
                     master_feedback.status = TASK_STATUS_WORKING;
                 }
