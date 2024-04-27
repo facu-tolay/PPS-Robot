@@ -380,45 +380,82 @@ void task_motor(void *arg)
         // receive from interrupt (wheel encoder)
         if(xQueueReceive(*(task_params->rpm_count_rcv_queue), &pulse_count_event, 0) == pdTRUE)
         {
-            pulses_buffer[(pulses_buffer_write_index++)%RPM_PULSES_BUFFER_SIZE] = pulse_count_event.pulses_count;
+            // the OG
+            // pulses_buffer[(pulses_buffer_write_index++)%RPM_PULSES_BUFFER_SIZE] = pulse_count_event.pulses_count;
+            // pulses_buffer_read_index = pulses_buffer_write_index;
+
+            // if(pulse_count_event.pulses_count <= RPM_PULSES_MIN)
+            // {
+            //     for(int i=0; i<3; i++)
+            //     {
+            //         hold_up_count += pulses_buffer[(RPM_PULSES_BUFFER_SIZE + pulses_buffer_read_index) % RPM_PULSES_BUFFER_SIZE];
+            //         measure_count = 3;
+
+            //         pulses_buffer_read_index = pulses_buffer_read_index - 1;
+            //     }
+            // }
+            // else if(pulse_count_event.pulses_count > RPM_PULSES_MIN && pulse_count_event.pulses_count <= RPM_PULSES_MED)
+            // {
+            //     for(int i=0; i<2; i++)
+            //     {
+            //         hold_up_count += pulses_buffer[(RPM_PULSES_BUFFER_SIZE + pulses_buffer_read_index) % RPM_PULSES_BUFFER_SIZE];
+            //         measure_count = 2;
+
+            //         pulses_buffer_read_index = pulses_buffer_read_index - 1;
+            //     }
+            // }
+            // else if(pulse_count_event.pulses_count > RPM_PULSES_MED && pulse_count_event.pulses_count <= RPM_PULSES_MAX)
+            // {
+            //     hold_up_count += pulses_buffer[(RPM_PULSES_BUFFER_SIZE + pulses_buffer_read_index) % RPM_PULSES_BUFFER_SIZE];
+            //     measure_count = 1;
+            // }
+            // else if(pulse_count_event.pulses_count > RPM_PULSES_MAX)
+            // {
+            //     hold_up_count += pulses_buffer[(RPM_PULSES_BUFFER_SIZE + pulses_buffer_read_index) % RPM_PULSES_BUFFER_SIZE];
+            //     measure_count = 1;
+            // }
+
+            // // calculate RPM
+            // rpm = (hold_up_count/CANT_RANURAS_ENCODER) * (1/(measure_count*TIMER_INTERVAL_RPM_MEASURE)) * 60.0;// rpm
+            // rpm = motor_direction == DIRECTION_CW ? rpm : -rpm;
+            // hold_up_count = 0;
+            // measure_count = 0;
+
+            // ---------- new boy in town ------------
+            pulses_buffer[pulses_buffer_write_index] = pulse_count_event.pulses_count;
             pulses_buffer_read_index = pulses_buffer_write_index;
+            pulses_buffer_write_index = (pulses_buffer_write_index + 1) % RPM_PULSES_BUFFER_SIZE;
+
+            hold_up_count = 0;
+            measure_count = 0;
 
             if(pulse_count_event.pulses_count <= RPM_PULSES_MIN)
             {
-                for(int i=0; i<3; i++)
-                {
-                    hold_up_count += pulses_buffer[(RPM_PULSES_BUFFER_SIZE + pulses_buffer_read_index) % RPM_PULSES_BUFFER_SIZE];
-                    measure_count = 3;
-
-                    pulses_buffer_read_index = pulses_buffer_read_index - 1;
-                }
+                measure_count = 5;
             }
             else if(pulse_count_event.pulses_count > RPM_PULSES_MIN && pulse_count_event.pulses_count <= RPM_PULSES_MED)
             {
-                for(int i=0; i<2; i++)
-                {
-                    hold_up_count += pulses_buffer[(RPM_PULSES_BUFFER_SIZE + pulses_buffer_read_index) % RPM_PULSES_BUFFER_SIZE];
-                    measure_count = 2;
-
-                    pulses_buffer_read_index = pulses_buffer_read_index - 1;
-                }
+                measure_count = 5;
             }
             else if(pulse_count_event.pulses_count > RPM_PULSES_MED && pulse_count_event.pulses_count <= RPM_PULSES_MAX)
             {
-                hold_up_count += pulses_buffer[(RPM_PULSES_BUFFER_SIZE + pulses_buffer_read_index) % RPM_PULSES_BUFFER_SIZE];
                 measure_count = 1;
             }
             else if(pulse_count_event.pulses_count > RPM_PULSES_MAX)
             {
-                hold_up_count += pulses_buffer[(RPM_PULSES_BUFFER_SIZE + pulses_buffer_read_index) % RPM_PULSES_BUFFER_SIZE];
                 measure_count = 1;
             }
 
-            // calculate RPM
-            rpm = (hold_up_count/CANT_RANURAS_ENCODER) * (1/(measure_count*TIMER_INTERVAL_RPM_MEASURE)) * 60.0;// rpm
-            rpm = motor_direction == DIRECTION_CW ? rpm : -rpm;
-            hold_up_count = 0;
-            measure_count = 0;
+            for(int i=0; i<measure_count; i++)
+            {
+                hold_up_count += pulses_buffer[(RPM_PULSES_BUFFER_SIZE + pulses_buffer_read_index) % RPM_PULSES_BUFFER_SIZE];
+                pulses_buffer_read_index = pulses_buffer_read_index - 1;
+            }
+
+            rpm = (hold_up_count / CANT_RANURAS_ENCODER) * (1.0 / (measure_count * TIMER_INTERVAL_RPM_MEASURE)) * 60.0;
+            rpm = (motor_direction == DIRECTION_CW) ? rpm : -rpm;
+            // ---------- new boy in town ------------
+
 
             // store RPM into buffer for calculating average
             if(master_feedback.status == TASK_STATUS_WORKING)
