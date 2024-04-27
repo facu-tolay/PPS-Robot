@@ -523,7 +523,7 @@ void master_task(void *arg)
                     break;
                 }
 
-                //calculo_compensacion_linea_magnetica(velocidades_lineales[2], velocidades_lineales_reales, line_follower_count); // FIXME
+                calculo_compensacion_linea_magnetica(velocidades_lineales[2], velocidades_lineales_reales, line_follower_count); // FIXME
                 calculo_error_velocidades_lineales(velocidades_lineales, velocidades_lineales_reales, delta_velocidad_lineal);
                 calculo_matriz_cinematica_inversa(delta_velocidad_lineal, velocidad_angular_compensacion_ruedas);
 
@@ -531,7 +531,7 @@ void master_task(void *arg)
 
                 for(int i=0; i<MOTOR_TASK_COUNT; i++)
                 {
-                    velocidad_angular_compensada[i] = rpm_queue[i].rpm - velocidad_angular_compensacion_ruedas[i]; // FIXME verificar si esta bien que se reste en lugar de sumar
+                    velocidad_angular_compensada[i] = rpm_queue[i].rpm - velocidad_angular_compensacion_ruedas[i];
                 }
 
                 motor_A_setpoint.rpm = velocidad_angular_compensada[0];
