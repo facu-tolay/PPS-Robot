@@ -19,8 +19,8 @@
 // TIMER defines
 #define TIMER_DIVIDER                   16  //  Hardware timer clock divider
 #define TIMER_SCALE                     (TIMER_BASE_CLK / TIMER_DIVIDER)  // convert counter value to seconds
-#define TIMER_INTERVAL_RPM_MEASURE      (0.1) // intervalo de interrupcion - expresado en [s]
-#define TIMER_INTERVAL_LINEF_MEASURE    (0.1) // intervalo de interrupcion - expresado en [s]
+#define TIMER_INTERVAL_RPM_MEASURE      (float)(0.1) // intervalo de interrupcion - expresado en [s]
+#define TIMER_INTERVAL_LINEF_MEASURE    (float)(0.1) // intervalo de interrupcion - expresado en [s]
 
 // GPIO defines
 #define GPIO_READY_LED      23
@@ -45,7 +45,7 @@
 #define PNCT_INPUT_SENSOR_5     15
 
 // RPM defines
-#define RPM_PULSES_BUFFER_SIZE              5
+#define RPM_PULSES_BUFFER_SIZE              10
 #define RPM_PULSES_MIN                      8
 #define RPM_PULSES_MED                      15
 #define RPM_PULSES_MAX                      30

@@ -65,7 +65,6 @@ typedef struct {
 typedef struct {
     uint8_t status;
     float average_rpm;
-    float distance;
     char *task_name;
 } master_task_feedback_t;
 
@@ -92,6 +91,18 @@ typedef struct {
     uint8_t busy;
 } rpm_queue_t;
 
+// queue usada para que cada tarea de medicion de RPM envie a la motor_task padre
+typedef struct {
+    float rpm;
+    float delta_distance;
+} rpm_task_queue_t;
+
+typedef struct {
+    xQueueHandle *output_rpm_queue;
+    xQueueHandle *input_interrupt_encoder_queue;
+} rpm_task_parameters_t;
+
+
 /*
  * For storing motor tasks status
  * */
@@ -104,6 +115,7 @@ typedef struct {
 // function prototypes
 void main_task(void *arg);
 void master_task(void *arg);
+void master_task_AA(void *arg);
 void master_task_ORG(void *arg);
 void motor_task_creator(task_params_t *param_motor, char *taskName, uint8_t assignedMotor, xQueueHandle *masterReceiveQueue, xQueueHandle *encoderLineFllwrReceiveQueue);
 void IRAM_ATTR isr_timer_handler_line_follower(void *param);
