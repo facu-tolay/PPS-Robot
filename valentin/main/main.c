@@ -338,7 +338,6 @@ void task_motor(void *arg)
     master_task_feedback_t master_feedback = {
         .status = TASK_STATUS_IDLE,
         .average_rpm = 0,
-        .distance = 0,
         .task_name = task_params->task_name
     };
 
@@ -369,8 +368,6 @@ void task_motor(void *arg)
     uint8_t last_motor_direction = 0;
     int16_t objective_count = 0;
     int16_t count_sum = 0;
-    int16_t prev_count_sum = 0;
-    int16_t delta_count_sum = 0;
     uint16_t measure_count = 0;
     float objective_distance = 0;
     float distance_accum = 0;
@@ -382,47 +379,6 @@ void task_motor(void *arg)
         // receive from interrupt (wheel encoder)
         if(xQueueReceive(*(task_params->rpm_count_rcv_queue), &pulse_count_event, 0) == pdTRUE)
         {
-            // the OG
-            // pulses_buffer[(pulses_buffer_write_index++)%RPM_PULSES_BUFFER_SIZE] = pulse_count_event.pulses_count;
-            // pulses_buffer_read_index = pulses_buffer_write_index;
-
-            // if(pulse_count_event.pulses_count <= RPM_PULSES_MIN)
-            // {
-            //     for(int i=0; i<3; i++)
-            //     {
-            //         hold_up_count += pulses_buffer[(RPM_PULSES_BUFFER_SIZE + pulses_buffer_read_index) % RPM_PULSES_BUFFER_SIZE];
-            //         measure_count = 3;
-
-            //         pulses_buffer_read_index = pulses_buffer_read_index - 1;
-            //     }
-            // }
-            // else if(pulse_count_event.pulses_count > RPM_PULSES_MIN && pulse_count_event.pulses_count <= RPM_PULSES_MED)
-            // {
-            //     for(int i=0; i<2; i++)
-            //     {
-            //         hold_up_count += pulses_buffer[(RPM_PULSES_BUFFER_SIZE + pulses_buffer_read_index) % RPM_PULSES_BUFFER_SIZE];
-            //         measure_count = 2;
-
-            //         pulses_buffer_read_index = pulses_buffer_read_index - 1;
-            //     }
-            // }
-            // else if(pulse_count_event.pulses_count > RPM_PULSES_MED && pulse_count_event.pulses_count <= RPM_PULSES_MAX)
-            // {
-            //     hold_up_count += pulses_buffer[(RPM_PULSES_BUFFER_SIZE + pulses_buffer_read_index) % RPM_PULSES_BUFFER_SIZE];
-            //     measure_count = 1;
-            // }
-            // else if(pulse_count_event.pulses_count > RPM_PULSES_MAX)
-            // {
-            //     hold_up_count += pulses_buffer[(RPM_PULSES_BUFFER_SIZE + pulses_buffer_read_index) % RPM_PULSES_BUFFER_SIZE];
-            //     measure_count = 1;
-            // }
-
-            // // calculate RPM
-            // rpm = (hold_up_count/CANT_RANURAS_ENCODER) * (1/(measure_count*TIMER_INTERVAL_RPM_MEASURE)) * 60.0;// rpm
-            // rpm = motor_direction == DIRECTION_CW ? rpm : -rpm;
-            // hold_up_count = 0;
-            // measure_count = 0;
-
             // ---------- new boy in town ------------
             pulses_buffer[pulses_buffer_write_index] = pulse_count_event.pulses_count;
             pulses_buffer_read_index = pulses_buffer_write_index;
@@ -466,12 +422,7 @@ void task_motor(void *arg)
                 if(rpm_index >= RPM_BUFFER_SIZE)
                 {
                     rpm_index = 0;
-                    delta_count_sum = count_sum - prev_count_sum;
-                    prev_count_sum = count_sum;
-
-                    // notify rpm average to master task
                     master_feedback.average_rpm = calculate_average(rpm_buffer, RPM_BUFFER_SIZE);
-                    master_feedback.distance = delta_count_sum * DELTA_DISTANCE_PER_SLIT;
                     xQueueSend(master_task_feedback, &master_feedback, 0);
                 }
             }
@@ -491,7 +442,6 @@ void task_motor(void *arg)
                     desired_rpm = 0;
                     master_feedback.status = TASK_STATUS_IDLE;
                     master_feedback.average_rpm = 0;
-                    master_feedback.distance = 0;
                     xQueueSend(master_task_feedback, &master_feedback, 0);
                 }
 
