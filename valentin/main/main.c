@@ -524,10 +524,7 @@ void master_task(void *arg)
 
                 // aca el problema es que el robot acumula error en forma de rotaciones (por la variacion de velocidad que tienen las ruedas),
                 // esto se podria compensar parecido a como lo hace calculo_compensacion_linea_magnetica()
-                if (velocidades_lineales[2] == 0)
-                {
-                    calculo_rompensacion_rotacional(velocidades_lineales_reales); // FIXME hay que probar a ver si funciona cuando ( velocidades_lineales[2] != 0 )
-                }
+                calculo_rompensacion_rotacional(velocidades_lineales_reales); // FIXME hay que probar a ver si funciona cuando ( velocidades_lineales[2] != 0 )
 
                 calculo_compensacion_linea_magnetica((velocidades_lineales[2] == 0), velocidades_lineales_reales, line_follower_count);
 
