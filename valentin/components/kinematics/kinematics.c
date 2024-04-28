@@ -10,13 +10,12 @@
 float desplazamiento_accum[VELOCITY_VECTOR_SIZE] = {0};
 float desplazamiento_rot_accum = 0;
 
-
 /*
  * Obtiene las velocidades angulares de cada rueda segun los parametros (Xr, Yr, theta)
  * */
 void calculo_matriz_cinematica_inversa(float *vector_velocidad_lineal, float *vector_velocidad_angular)
 {
-    float matriz_velocidad_lineal[4][3] = {0};
+    float matriz_velocidad_lineal[4][VELOCITY_VECTOR_SIZE] = {0};
 
     /*matriz_velocidad_lineal[0][0] = (-sqrt(2)/2)*(30/(WHEEL_RADIUS*M_PI));
     matriz_velocidad_lineal[0][1] = (sqrt(2)/2)*(30/(WHEEL_RADIUS*M_PI));
@@ -51,7 +50,7 @@ void calculo_matriz_cinematica_inversa(float *vector_velocidad_lineal, float *ve
 
     for (int i=0; i<4; ++i)
     {
-        for (int k=0; k<3; ++k)
+        for (int k=0; k<VELOCITY_VECTOR_SIZE; ++k)
         {
             vector_velocidad_angular[i] += matriz_velocidad_lineal[i][k] * vector_velocidad_lineal[k]; //rpm
         }
@@ -65,7 +64,7 @@ void calculo_matriz_cinematica_inversa(float *vector_velocidad_lineal, float *ve
  * */
 void calculo_matriz_cinematica_directa(float *vector_velocidad_angular, float *vector_velocidad_lineal)
 {
-    float matriz_inversa[3][4] = {0};
+    float matriz_inversa[VELOCITY_VECTOR_SIZE][4] = {0};
 
     /*matriz_inversa[0][0] = (-sqrt(2)/2)*(((WHEEL_RADIUS/2)*M_PI)/30);
     matriz_inversa[0][1] = (-sqrt(2)/2)*(((WHEEL_RADIUS/2)*M_PI)/30);
@@ -93,12 +92,12 @@ void calculo_matriz_cinematica_directa(float *vector_velocidad_angular, float *v
     matriz_inversa[2][2] = 0.09071; // (1/(2*ROBOT_RADIUS))*(WHEEL_RADIUS/2);
     matriz_inversa[2][3] = 0.09071; // (1/(2*ROBOT_RADIUS))*(WHEEL_RADIUS/2);
 
-    for (int i=0; i<3; ++i)
+    for (int i=0; i<VELOCITY_VECTOR_SIZE; ++i)
     {
         vector_velocidad_lineal[i] = 0;
     }
 
-    for (int i=0; i<3; ++i)
+    for (int i=0; i<VELOCITY_VECTOR_SIZE; ++i)
     {
         for (int k=0; k<4; ++k)
         {
@@ -114,7 +113,7 @@ void calculo_matriz_cinematica_directa(float *vector_velocidad_angular, float *v
  * */
 void calculo_error_velocidades_lineales(float *velocidad_lineal, float *velocidad_lineal_real, float *delta_velocidad_lineal)
 {
-    for(int i=0; i<3; i++)
+    for(int i=0; i<VELOCITY_VECTOR_SIZE; i++)
     {
         delta_velocidad_lineal[i] = velocidad_lineal_real[i] - velocidad_lineal[i];
     }
@@ -165,6 +164,8 @@ void calculo_compensacion_linea_magnetica(uint8_t is_velocidad_rotacional_zero, 
 
 void calculo_rompensacion_rotacional(float velocidades_lineales_reales[VELOCITY_VECTOR_SIZE])
 {
+    // FIXME esto quiza necesitaria un if para saber si esta yendo en linea recta o no ( velocidad_lineal[2] == v_rotacional == 0 )
+    // creo que no funcionaria bien para los casos que tiene que rotar, dado que esto lo que hace es tratar siempre de llevar el desplazamiento rotazional a cero
     if(desplazamiento_rot_accum != 0)
     {
         velocidades_lineales_reales[2] = velocidades_lineales_reales[2] + (desplazamiento_rot_accum * 1.5); // se compensa la rotacion en base a cuanto desplazamiento rotacional se detecte
@@ -185,21 +186,4 @@ uint8_t robot_in_radius_of_setpoint(float desired_setpoint, float *current_posit
     float delta_x = fabs(current_position[0] - desired_setpoint);
     float delta_y = fabs(current_position[1] - desired_setpoint);
     return (delta_x <= MIN_DESTINATION_RADIUS || current_position[0] >= desired_setpoint || delta_y <= MIN_DESTINATION_RADIUS || current_position[1] >= desired_setpoint);
-}
-
-void seteo_parametros_vectores(float *vector_velocidad_lineal, float *vector_velocidad_angular, movement_vector_t *movement_vector)
-{
-    vector_velocidad_lineal[0] = movement_vector->velocidad_lineal_x;
-    vector_velocidad_lineal[1] = movement_vector->velocidad_lineal_y;
-    vector_velocidad_lineal[2] = movement_vector->velocidad_angular;
-
-    calculo_matriz_cinematica_inversa(vector_velocidad_lineal, vector_velocidad_angular);
-}
-
-void seteo_datos_motor_task(float velocidad_angular, float setpoint, motor_movement_vector_t *motor, QueueHandle_t queue)
-{
-    motor->rpm = velocidad_angular;
-    motor->setpoint = setpoint;
-
-    xQueueSend(queue, motor, 0);
 }

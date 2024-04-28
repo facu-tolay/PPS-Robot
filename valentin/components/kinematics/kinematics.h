@@ -44,7 +44,5 @@ void calculo_compensacion_linea_magnetica(uint8_t is_velocidad_rotacional_zero, 
 void calculo_rompensacion_rotacional(float velocidades_lineales_reales[VELOCITY_VECTOR_SIZE]);
 void reset_accum();
 uint8_t robot_in_radius_of_setpoint(float desired_setpoint, float *current_position);
-void seteo_parametros_vectores(float *vector_velocidad_lineal, float *vector_velocidad_angular, movement_vector_t *movement_vector);
-void seteo_datos_motor_task(float velocidad_angular, float setpoint, motor_movement_vector_t *motor, QueueHandle_t queue);
 
 #endif /* COMPONENTS_KINEMATICS_KINEMATICS_H_ */

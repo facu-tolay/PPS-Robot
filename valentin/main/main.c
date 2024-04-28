@@ -501,8 +501,6 @@ void master_task(void *arg)
 
                 if(robot_in_radius_of_setpoint(desired_setpoint, distancia_accum))
                 {
-                    is_running = 0;
-
                     motor_A_setpoint.rpm = 0;
                     motor_A_setpoint.setpoint = 0;
                     motor_B_setpoint.rpm = 0;
@@ -519,15 +517,19 @@ void master_task(void *arg)
                     send_mqtt_feedback(velocidades_lineales_reales, delta_distance);
                     send_mqtt_status_path_done();
 
+                    is_running = 0;
                     state = ST_MT_IDLE;
                     break;
                 }
 
-                // aca el problema es que el robot acumula error en forma de rotaciones, podria compensar parecido como lo hace calculo_compensacion_linea_magnetica()
-                calculo_rompensacion_rotacional(velocidades_lineales_reales);
+                // aca el problema es que el robot acumula error en forma de rotaciones (por la variacion de velocidad que tienen las ruedas),
+                // esto se podria compensar parecido a como lo hace calculo_compensacion_linea_magnetica()
+                calculo_rompensacion_rotacional(velocidades_lineales_reales); // FIXME hay que probar a ver si funciona cuando ( velocidades_lineales[2] != 0 )
 
-                calculo_compensacion_linea_magnetica((velocidades_lineales[2] == 0), velocidades_lineales_reales, line_follower_count); // FIXME
+                calculo_compensacion_linea_magnetica((velocidades_lineales[2] == 0), velocidades_lineales_reales, line_follower_count);
+
                 calculo_error_velocidades_lineales(velocidades_lineales, velocidades_lineales_reales, delta_velocidad_lineal);
+
                 calculo_matriz_cinematica_inversa(delta_velocidad_lineal, velocidad_angular_compensacion_ruedas);
 
                 linef_hysteresis_count++;
