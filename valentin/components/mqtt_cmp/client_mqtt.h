@@ -20,19 +20,22 @@
 
 #include "esp_log.h"
 #include "mqtt_client.h"
-// #include "client_mqtt_cred.h"
 #include <cJSON.h>
 #include "../kinematics/kinematics.h"
 
 #define MQQT_DATA_LEN    72
 #define MQQT_TOPIC_LEN   25
 
-esp_mqtt_client_handle_t mqtt_app_start(xQueueHandle *ReceiveQueue);
+#define CONFIG_ROBOT_IDD "ROB_A"
+
+esp_mqtt_client_handle_t mqtt_app_start(xQueueHandle *receive_queue);
 void mqtt_event_handler(void *handler_args, esp_event_base_t base, int32_t event_id, void *event_data);
-void log_error_if_nonzero(const char *message, int error_code);
-void send_log(void);
-void send_motor_parameters(xQueueHandle* receive_queue, motor_mqtt_params_t* motor_values);
-int receive_motor_parameters(const char* const data, motor_mqtt_params_t* motor_values);
+void send_mqtt_feedback(float velocidades_lineales_reales[VELOCITY_VECTOR_SIZE], float *delta_distance);
+void send_mqtt_status_path_done();
+void send_mqtt_register_request();
+void forward_robot_feedback(xQueueHandle *receive_queue, movement_vector_t *motor_values);
+int process_robot_feedback(const char *data, movement_vector_t *motor_values);
+int register_robot(const char *data, char *robot_name);
 
 
 

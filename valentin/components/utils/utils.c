@@ -10,7 +10,6 @@
 // Initial configuration for modules
 void timer_initialize(int timer_idx, bool auto_reload, double timer_interval_sec, void (*isr_timer_handler)(void *))
 {
-    /* Select and initialize basic parameters of the timer */
     timer_config_t config = {
         .divider = TIMER_DIVIDER,
         .counter_dir = TIMER_COUNT_UP,
@@ -18,6 +17,7 @@ void timer_initialize(int timer_idx, bool auto_reload, double timer_interval_sec
         .alarm_en = TIMER_ALARM_EN,
         .auto_reload = auto_reload,
     };
+
     timer_init(TIMER_GROUP_0, timer_idx, &config);
 
     /* Timer's counter will initially start from value below.
@@ -34,64 +34,58 @@ void timer_initialize(int timer_idx, bool auto_reload, double timer_interval_sec
 
 void pcnt_initialize(int unit, int signal_gpio_in)
 {
-	/* Prepare configuration for the PCNT unit */
-	pcnt_config_t pcnt_config = {
-		// Set PCNT input signal and control GPIOs
-		.pulse_gpio_num = signal_gpio_in,
-		.ctrl_gpio_num = -1, // Control pin not utilized
-		.channel = PCNT_CHANNEL_0,
-		.unit = unit,
-		// What to do on the positive / negative edge of pulse input?
-		.pos_mode = PCNT_COUNT_INC,   // Count up on the positive edge
-		.neg_mode = PCNT_COUNT_DIS,   // Inhibit counter(counter value will not change in this condition)
-		// What to do when control input is low or high?
-		.lctrl_mode = PCNT_MODE_KEEP, // Reverse counting direction if low
-		.hctrl_mode = PCNT_MODE_KEEP, // Keep the primary counter mode if high
-	};
-	/* Initialize PCNT unit */
-	pcnt_unit_config(&pcnt_config);
+    pcnt_config_t pcnt_config = {
+        .pulse_gpio_num = signal_gpio_in,   // Set PCNT input signal and control GPIOs
+        .ctrl_gpio_num = -1,                // Control pin not utilized
+        .channel = PCNT_CHANNEL_0,
+        .unit = unit,
+                                            // What to do on the positive / negative edge of pulse input?
+        .pos_mode = PCNT_COUNT_INC,         // Count up on the positive edge
+        .neg_mode = PCNT_COUNT_DIS,         // Inhibit counter(counter value will not change in this condition)
+                                            // What to do when control input is low or high?
+        .lctrl_mode = PCNT_MODE_KEEP,       // Reverse counting direction if low
+        .hctrl_mode = PCNT_MODE_KEEP,       // Keep the primary counter mode if high
+    };
 
-	/* Configure and enable the input filter */
-	pcnt_set_filter_value(unit, 1000);
-	pcnt_filter_enable(unit);
+    pcnt_unit_config(&pcnt_config);
 
-	/* Initialize PCNT's counter */
-	pcnt_counter_pause(unit);
-	pcnt_counter_clear(unit);
+    pcnt_set_filter_value(unit, 1000);
+    pcnt_filter_enable(unit);
 
-	/* Everything is set up, now go to counting */
-	pcnt_counter_resume(unit);
+    pcnt_counter_pause(unit);
+    pcnt_counter_clear(unit);
+    pcnt_counter_resume(unit);
 }
 
 void gpio_initialize()
 {
-	gpio_set_direction(GPIO_READY_LED, GPIO_MODE_OUTPUT);
-	gpio_set_direction(GPIO_ENABLE_MOTORS, GPIO_MODE_OUTPUT);
-	gpio_set_level(GPIO_ENABLE_MOTORS, 0);
+    gpio_set_direction(GPIO_READY_LED, GPIO_MODE_OUTPUT);
+    gpio_set_direction(GPIO_ENABLE_MOTORS, GPIO_MODE_OUTPUT);
+    gpio_set_level(GPIO_ENABLE_MOTORS, 0);
 }
 
 // Utils functions
 void restart_pulse_counter(int pcnt)
 {
-	pcnt_counter_pause(pcnt);
-	pcnt_counter_clear(pcnt);
-	pcnt_counter_resume(pcnt);
-	return;
+    pcnt_counter_pause(pcnt);
+    pcnt_counter_clear(pcnt);
+    pcnt_counter_resume(pcnt);
+    return;
 }
 
 float calculate_average(float *rpm_buffer, uint8_t size)
 {
-	if(!size)
-	{
-		return 0;
-	}
-	else
-	{
-		for(int i=1; i<size; i++)
-		{
-			rpm_buffer[0] += rpm_buffer[i];
-		}
+    if(!size)
+    {
+        return 0;
+    }
+    else
+    {
+        for(int i=1; i<size; i++)
+        {
+            rpm_buffer[0] += rpm_buffer[i];
+        }
 
-		return rpm_buffer[0]/size;
-	}
+        return rpm_buffer[0]/size;
+    }
 }
