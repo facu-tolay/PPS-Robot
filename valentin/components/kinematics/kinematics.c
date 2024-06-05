@@ -140,11 +140,11 @@ void calculo_compensacion_linea_magnetica(uint8_t is_velocidad_rotacional_zero, 
             {
                 if(i==0)
                 {
-                    velocidades_lineales_reales[2] = velocidades_lineales_reales[2] + line_follower_count[i]*6.0;
+                    velocidades_lineales_reales[2] = velocidades_lineales_reales[2] + line_follower_count[i]*12.0;
                 }
                 else
                 {
-                    velocidades_lineales_reales[2] = velocidades_lineales_reales[2] - line_follower_count[i]*6.0;
+                    velocidades_lineales_reales[2] = velocidades_lineales_reales[2] - line_follower_count[i]*12.0;
                 }
             }
             else
@@ -168,7 +168,7 @@ void calculo_rompensacion_rotacional(float velocidades_lineales_reales[VELOCITY_
     // creo que no funcionaria bien para los casos que tiene que rotar, dado que esto lo que hace es tratar siempre de llevar el desplazamiento rotazional a cero
     if(desplazamiento_rot_accum != 0)
     {
-        velocidades_lineales_reales[2] = velocidades_lineales_reales[2] + (desplazamiento_rot_accum * 2.75); // se compensa la rotacion en base a cuanto desplazamiento rotacional se detecte
+        velocidades_lineales_reales[2] = velocidades_lineales_reales[2] + (desplazamiento_rot_accum * 3.35); // se compensa la rotacion en base a cuanto desplazamiento rotacional se detecte
     }
 }
 
