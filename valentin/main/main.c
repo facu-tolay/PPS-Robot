@@ -378,6 +378,9 @@ void master_task(void *arg)
             xQueueSend(master_task_motor_D_rcv_queue, &motor_D_setpoint, 0);
             ESP_LOGI(TAG, "received new setpoint or kalman feedback [%2.2f -- %2.3f, %2.3f, %2.3f]", movement_vector.setpoint, velocidades_lineales[0], velocidades_lineales[1], velocidades_lineales[2]);
             //ESP_LOGI(TAG, "motor speeds [%2.2f | %2.2f | %2.2f | %2.2f]", velocidades_angulares_motores[0], velocidades_angulares_motores[1], velocidades_angulares_motores[2], velocidades_angulares_motores[3]);
+
+            // FIXME hacer clear de la cola de RPM master_task_feedback
+
             state = ST_MT_GATHER_RPM;
         }
 
@@ -405,8 +408,7 @@ void master_task(void *arg)
 
             case ST_MT_GATHER_RPM:
             {
-                // VER SI LA RECOLECCION DE RPM SE SIGUE HACIENDO SIN DEPENDER DE QUE ESTE EN ESTE ESTADO PARA MEJORAR
-                // rcv feedback from motor tasks
+                // receive feedback from motor tasks when running
                 if(xQueueReceive(master_task_feedback, &feedback_received, 0) == pdTRUE)
                 {
                     switch(feedback_received.status)
@@ -524,9 +526,7 @@ void master_task(void *arg)
 
                 calculo_compensacion_linea_magnetica((velocidades_lineales[2] == 0), velocidades_lineales_reales, line_follower_count);
 
-                // aca el problema es que el robot acumula error en forma de rotaciones (por la variacion de velocidad que tienen las ruedas),
-                // esto se podria compensar parecido a como lo hace calculo_compensacion_linea_magnetica()
-                calculo_rompensacion_rotacional(velocidades_lineales_reales); // FIXME hay que probar a ver si funciona cuando ( velocidades_lineales[2] != 0 )
+                calculo_rompensacion_rotacional(velocidades_lineales_reales);
 
                 calculo_error_velocidades_lineales(velocidades_lineales, velocidades_lineales_reales, delta_velocidad_lineal);
 

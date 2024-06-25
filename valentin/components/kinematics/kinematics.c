@@ -109,7 +109,9 @@ void calculo_matriz_cinematica_directa(float *vector_velocidad_angular, float *v
 }
 
 /*
- * Calcula el error entre la velocidad lineal deseada (Xr, Yr, theta) y la real
+ * Calcula el error entre la velocidad lineal deseada (Xr, Yr, theta) y la real.
+   Si da un numero positivo significa que debo bajar la velocidad en esa componente.
+   Si da un numero negativo significa que debo subir la velocidad en esa componente.
  * */
 void calculo_error_velocidades_lineales(float *velocidad_lineal, float *velocidad_lineal_real, float *delta_velocidad_lineal)
 {
