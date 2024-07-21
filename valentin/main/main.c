@@ -309,6 +309,8 @@ void master_task(void *arg)
     motor_movement_vector_t motor_C_setpoint =  {0};
     motor_movement_vector_t motor_D_setpoint =  {0};
 
+    char log_buffer[1400] = {0};
+
     while(1)
     {
         vTaskDelay(1);
@@ -462,7 +464,7 @@ void master_task(void *arg)
                                                 rpm_queue[i].busy = 0;
                                                 rpm_average_array[i] = rpm_queue[i].rpm;
                                             }
-
+                                            send_mqtt_log("ST_MT_CALC_RPM_COMP", "/topic/state");
                                             state = ST_MT_CALC_RPM_COMP;
                                         }
                                     }
@@ -490,8 +492,22 @@ void master_task(void *arg)
             case ST_MT_CALC_RPM_COMP:
             {
                 // Obtencion de las velocidades lineales reales a partir de las RPM
+                uint64_t start = esp_timer_get_time();
                 calculo_matriz_cinematica_directa(rpm_average_array, velocidades_lineales_reales);
-                ESP_LOGI(TAG, "veloc lineales reales: %2.3f / %2.3f / %2.3f", velocidades_lineales_reales[0], velocidades_lineales_reales[1], velocidades_lineales_reales[2]);
+                // ESP_LOGI(TAG, );
+                sprintf(log_buffer, "rpm_average_array: %lld / %2.3f / %2.3f / %2.3f/ %2.3f",
+                              start,
+                              rpm_average_array[0],
+                              rpm_average_array[1],
+                              rpm_average_array[2],
+                              rpm_average_array[3]);
+                send_mqtt_log(log_buffer, "/topic/rpm_avg");
+
+                sprintf(log_buffer, "line_follower_count: %d / %d / %d",
+                        line_follower_count[0],
+                        line_follower_count[1],
+                        line_follower_count[2]);
+                send_mqtt_log(log_buffer, "/topic/line_fllw_cnt");
 
                 // calculo de odometria
                 current_tick = xTaskGetTickCount();
@@ -525,18 +541,22 @@ void master_task(void *arg)
                 }
 
                 calculo_compensacion_linea_magnetica((velocidades_lineales[2] == 0), velocidades_lineales_reales, line_follower_count);
+                send_mqtt_feedback_only(velocidades_lineales_reales, 0);
 
                 calculo_rompensacion_rotacional(velocidades_lineales_reales);
+                send_mqtt_feedback_only(velocidades_lineales_reales, 1);
 
                 calculo_error_velocidades_lineales(velocidades_lineales, velocidades_lineales_reales, delta_velocidad_lineal);
+                send_mqtt_feedback_only(velocidades_lineales_reales, 2);
 
                 calculo_matriz_cinematica_inversa(delta_velocidad_lineal, velocidad_angular_compensacion_ruedas);
+                send_mqtt_feedback_only(velocidades_lineales_reales, 3);
 
                 linef_hysteresis_count++;
 
                 for(int i=0; i<MOTOR_TASK_COUNT; i++)
                 {
-                    velocidad_angular_compensada[i] = rpm_queue[i].rpm - velocidad_angular_compensacion_ruedas[i];
+                    velocidad_angular_compensada[i] = rpm_average_array[i] - velocidad_angular_compensacion_ruedas[i];
                 }
 
                 motor_A_setpoint.rpm = velocidad_angular_compensada[0];
