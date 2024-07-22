@@ -464,7 +464,7 @@ void master_task(void *arg)
                                                 rpm_queue[i].busy = 0;
                                                 rpm_average_array[i] = rpm_queue[i].rpm;
                                             }
-                                            send_mqtt_log("ST_MT_CALC_RPM_COMP", "/topic/state");
+                                            send_mqtt_log("ST_MT_CALC_RPM_COMP", "topic/state");
                                             state = ST_MT_CALC_RPM_COMP;
                                         }
                                     }
@@ -501,13 +501,13 @@ void master_task(void *arg)
                               rpm_average_array[1],
                               rpm_average_array[2],
                               rpm_average_array[3]);
-                send_mqtt_log(log_buffer, "/topic/rpm_avg");
+                send_mqtt_log(log_buffer, "topic/rpm_avg");
 
                 sprintf(log_buffer, "line_follower_count: %d / %d / %d",
                         line_follower_count[0],
                         line_follower_count[1],
                         line_follower_count[2]);
-                send_mqtt_log(log_buffer, "/topic/line_fllw_cnt");
+                send_mqtt_log(log_buffer, "topic/line_fllw_cnt");
 
                 // calculo de odometria
                 current_tick = xTaskGetTickCount();

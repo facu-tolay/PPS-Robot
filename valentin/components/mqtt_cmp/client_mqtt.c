@@ -15,7 +15,7 @@ esp_mqtt_client_handle_t mqtt_app_start(xQueueHandle *receive_queue)
         .client_id = CONFIG_ROBOT_IDD,
         .keepalive = 20,
         .disable_clean_session = true,
-        .lwt_topic = "/topic/lwt",
+        .lwt_topic = "topic/lwt",
         .lwt_msg = CONFIG_ROBOT_IDD,
         .lwt_msg_len = 5
     };
@@ -23,9 +23,9 @@ esp_mqtt_client_handle_t mqtt_app_start(xQueueHandle *receive_queue)
     client = esp_mqtt_client_init(&mqtt_cfg);
     ESP_ERROR_CHECK(esp_mqtt_client_register_event(client, ESP_EVENT_ANY_ID, mqtt_event_handler, (void*)receive_queue)); // the last argument is used to pass data to the event handler
     ESP_ERROR_CHECK(esp_mqtt_client_start(client));
-    sprintf(topic_robot_register, "/topic/register");
-    sprintf(topic_receive_setpoint, "/topic/setpoint/%s", mqtt_cfg.client_id);
-    sprintf(topic_robot_feedback, "/topic/live/%s", mqtt_cfg.client_id);
+    sprintf(topic_robot_register, "topic/register");
+    sprintf(topic_receive_setpoint, "topic/setpoint/%s", mqtt_cfg.client_id);
+    sprintf(topic_robot_feedback, "topic/live/%s", mqtt_cfg.client_id);
     return client;
 }
 
