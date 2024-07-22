@@ -52,6 +52,7 @@ void mqtt_event_handler(void *handler_args, esp_event_base_t base, int32_t event
                 ESP_LOGE(TAG, "error in subscribe topic, msg_id=%d", msg_id);
                 break;
             }
+            ESP_LOGI(TAG, "MQTT connected");
             break;
         }
 
