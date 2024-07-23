@@ -309,7 +309,7 @@ void master_task(void *arg)
     motor_movement_vector_t motor_C_setpoint =  {0};
     motor_movement_vector_t motor_D_setpoint =  {0};
 
-    char log_buffer[1400] = {0};
+    char log_buffer[100] = {0};
 
     while(1)
     {
@@ -492,18 +492,18 @@ void master_task(void *arg)
             case ST_MT_CALC_RPM_COMP:
             {
                 // Obtencion de las velocidades lineales reales a partir de las RPM
-                uint64_t start = esp_timer_get_time();
                 calculo_matriz_cinematica_directa(rpm_average_array, velocidades_lineales_reales);
                 // ESP_LOGI(TAG, );
-                sprintf(log_buffer, "rpm_average_array: %lld / %2.3f / %2.3f / %2.3f/ %2.3f",
-                              start,
+                sprintf(log_buffer, "{\"a\": %2.2f, \"b\": %2.2f, \"c\": %2.2f, \"d\": %2.2f}",
                               rpm_average_array[0],
                               rpm_average_array[1],
                               rpm_average_array[2],
                               rpm_average_array[3]);
                 send_mqtt_log(log_buffer, "topic/rpm_avg");
 
-                sprintf(log_buffer, "line_follower_count: %d / %d / %d",
+                memset(log_buffer, 0, sizeof(log_buffer));
+
+                sprintf(log_buffer, "{\"a\": %d, \"b\": %d, \"c\": %d}",
                         line_follower_count[0],
                         line_follower_count[1],
                         line_follower_count[2]);
