@@ -143,12 +143,12 @@ void calculo_compensacion_linea_magnetica(uint8_t is_velocidad_rotacional_zero, 
                 if(i==0)
                 {
                     // velocidades_lineales_reales[2] = velocidades_lineales_reales[2] + line_follower_count[i]*12.0;
-                    desplazamiento_rot_accum = desplazamiento_rot_accum + line_follower_count[i]*2.5;
+                    desplazamiento_rot_accum = desplazamiento_rot_accum + line_follower_count[i]*7.0;
                 }
                 else
                 {
                     // velocidades_lineales_reales[2] = velocidades_lineales_reales[2] - line_follower_count[i]*12.0;
-                    desplazamiento_rot_accum = desplazamiento_rot_accum - line_follower_count[i]*2.5;
+                    desplazamiento_rot_accum = desplazamiento_rot_accum - line_follower_count[i]*7.0;
                 }
             }
             else
@@ -156,12 +156,12 @@ void calculo_compensacion_linea_magnetica(uint8_t is_velocidad_rotacional_zero, 
                 if(i==0)
                 {
                     // velocidades_lineales_reales[2] = velocidades_lineales_reales[2] + line_follower_count[i]*9.2;
-                    desplazamiento_rot_accum = desplazamiento_rot_accum + line_follower_count[i]*2.5;
+                    desplazamiento_rot_accum = desplazamiento_rot_accum + line_follower_count[i]*7.0;
                 }
                 else
                 {
                     // velocidades_lineales_reales[2] = velocidades_lineales_reales[2] - line_follower_count[i]*9.2;
-                    desplazamiento_rot_accum = desplazamiento_rot_accum - line_follower_count[i]*2.5;
+                    desplazamiento_rot_accum = desplazamiento_rot_accum - line_follower_count[i]*7.0;
                 }
             }
         }
@@ -185,6 +185,11 @@ void reset_accum()
     {
         desplazamiento_accum[i] = 0;
     }
+}
+
+void reset_rotacion()
+{
+    desplazamiento_rot_accum = 0;
 }
 
 uint8_t robot_in_radius_of_setpoint(float desired_setpoint, float *current_position)
