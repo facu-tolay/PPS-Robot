@@ -532,7 +532,8 @@ void master_task(void *arg)
                     xQueueSend(master_task_motor_C_rcv_queue, &motor_C_setpoint, 0);
                     xQueueSend(master_task_motor_D_rcv_queue, &motor_D_setpoint, 0);
 
-                    send_mqtt_feedback(velocidades_lineales_reales, delta_distance);
+                    send_mqtt_feedback_only(velocidades_lineales_reales, -1);
+                    send_mqtt_feedback(delta_distance);
                     send_mqtt_status_path_done();
 
                     is_running = 0;
@@ -541,16 +542,17 @@ void master_task(void *arg)
                 }
 
                 calculo_compensacion_linea_magnetica((velocidades_lineales[2] == 0), velocidades_lineales_reales, line_follower_count);
-                send_mqtt_feedback_only(velocidades_lineales_reales, 0);
-
-                calculo_rompensacion_rotacional(velocidades_lineales_reales);
                 send_mqtt_feedback_only(velocidades_lineales_reales, 1);
 
-                calculo_error_velocidades_lineales(velocidades_lineales, velocidades_lineales_reales, delta_velocidad_lineal);
+                calculo_rompensacion_rotacional(velocidades_lineales_reales);
                 send_mqtt_feedback_only(velocidades_lineales_reales, 2);
 
-                calculo_matriz_cinematica_inversa(delta_velocidad_lineal, velocidad_angular_compensacion_ruedas);
+                calculo_error_velocidades_lineales(velocidades_lineales, velocidades_lineales_reales, delta_velocidad_lineal);
                 send_mqtt_feedback_only(velocidades_lineales_reales, 3);
+
+                calculo_matriz_cinematica_inversa(delta_velocidad_lineal, velocidad_angular_compensacion_ruedas);
+                send_mqtt_feedback_only(velocidades_lineales_reales, 4);
+                send_mqtt_feedback(delta_distance);
 
                 linef_hysteresis_count++;
 
@@ -573,7 +575,7 @@ void master_task(void *arg)
                 xQueueSend(master_task_motor_C_rcv_queue, &motor_C_setpoint, 0);
                 xQueueSend(master_task_motor_D_rcv_queue, &motor_D_setpoint, 0);
 
-                send_mqtt_feedback(velocidades_lineales_reales, delta_distance);
+                send_mqtt_feedback(delta_distance);
 
                 state = ST_MT_GATHER_RPM;
                 break;
