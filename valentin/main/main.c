@@ -380,6 +380,7 @@ void master_task(void *arg)
             //ESP_LOGI(TAG, "motor speeds [%2.2f | %2.2f | %2.2f | %2.2f]", velocidades_angulares_motores[0], velocidades_angulares_motores[1], velocidades_angulares_motores[2], velocidades_angulares_motores[3]);
 
             // FIXME hacer clear de la cola de RPM master_task_feedback
+            if(!is_running) xQueueReset(master_task_feedback);
 
             state = ST_MT_GATHER_RPM;
         }

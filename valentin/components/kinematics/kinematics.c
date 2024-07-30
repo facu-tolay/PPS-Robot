@@ -143,12 +143,12 @@ void calculo_compensacion_linea_magnetica(uint8_t is_velocidad_rotacional_zero, 
                 if(i==0)
                 {
                     // velocidades_lineales_reales[2] = velocidades_lineales_reales[2] + line_follower_count[i]*12.0;
-                    desplazamiento_rot_accum = desplazamiento_rot_accum + line_follower_count[i]*2.5;
+                    desplazamiento_rot_accum = desplazamiento_rot_accum + line_follower_count[i]*3.5;
                 }
                 else
                 {
                     // velocidades_lineales_reales[2] = velocidades_lineales_reales[2] - line_follower_count[i]*12.0;
-                    desplazamiento_rot_accum = desplazamiento_rot_accum - line_follower_count[i]*2.5;
+                    desplazamiento_rot_accum = desplazamiento_rot_accum - line_follower_count[i]*3.5;
                 }
             }
             else
@@ -156,12 +156,12 @@ void calculo_compensacion_linea_magnetica(uint8_t is_velocidad_rotacional_zero, 
                 if(i==0)
                 {
                     // velocidades_lineales_reales[2] = velocidades_lineales_reales[2] + line_follower_count[i]*9.2;
-                    desplazamiento_rot_accum = desplazamiento_rot_accum + line_follower_count[i]*2.5;
+                    desplazamiento_rot_accum = desplazamiento_rot_accum + line_follower_count[i]*3.5;
                 }
                 else
                 {
                     // velocidades_lineales_reales[2] = velocidades_lineales_reales[2] - line_follower_count[i]*9.2;
-                    desplazamiento_rot_accum = desplazamiento_rot_accum - line_follower_count[i]*2.5;
+                    desplazamiento_rot_accum = desplazamiento_rot_accum - line_follower_count[i]*3.5;
                 }
             }
         }
@@ -176,6 +176,9 @@ void calculo_rompensacion_rotacional(float velocidades_lineales_reales[VELOCITY_
     {
         velocidades_lineales_reales[2] = velocidades_lineales_reales[2] + (desplazamiento_rot_accum * 1.95); // se compensa la rotacion en base a cuanto desplazamiento rotacional se detecte
     }
+
+    // aca se podria hacer que cambie el valor de multiplicacion si detecta un iman y luego lo vuelva al valor normal
+    // otra idea seria hacer que se desplace hacia un costado
 }
 
 void reset_accum()
