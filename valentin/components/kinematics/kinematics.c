@@ -9,6 +9,7 @@
 
 float desplazamiento_accum[VELOCITY_VECTOR_SIZE] = {0};
 float desplazamiento_rot_accum = 0;
+uint8_t asd = 0;
 
 /*
  * Obtiene las velocidades angulares de cada rueda segun los parametros (Xr, Yr, theta)
@@ -138,17 +139,19 @@ void calculo_compensacion_linea_magnetica(uint8_t is_velocidad_rotacional_zero, 
     {
         if ((i == 0 || i == 2) && line_follower_count[i] != 0)
         {
+            asd = 1;
+
             if(!is_velocidad_rotacional_zero)
             {
                 if(i==0)
                 {
                     // velocidades_lineales_reales[2] = velocidades_lineales_reales[2] + line_follower_count[i]*12.0;
-                    desplazamiento_rot_accum = desplazamiento_rot_accum + line_follower_count[i]*3.5;
+                    desplazamiento_rot_accum = desplazamiento_rot_accum + line_follower_count[i]*3.0;
                 }
                 else
                 {
                     // velocidades_lineales_reales[2] = velocidades_lineales_reales[2] - line_follower_count[i]*12.0;
-                    desplazamiento_rot_accum = desplazamiento_rot_accum - line_follower_count[i]*3.5;
+                    desplazamiento_rot_accum = desplazamiento_rot_accum - line_follower_count[i]*3.0;
                 }
             }
             else
@@ -156,12 +159,12 @@ void calculo_compensacion_linea_magnetica(uint8_t is_velocidad_rotacional_zero, 
                 if(i==0)
                 {
                     // velocidades_lineales_reales[2] = velocidades_lineales_reales[2] + line_follower_count[i]*9.2;
-                    desplazamiento_rot_accum = desplazamiento_rot_accum + line_follower_count[i]*3.5;
+                    desplazamiento_rot_accum = desplazamiento_rot_accum + line_follower_count[i]*3.0;
                 }
                 else
                 {
                     // velocidades_lineales_reales[2] = velocidades_lineales_reales[2] - line_follower_count[i]*9.2;
-                    desplazamiento_rot_accum = desplazamiento_rot_accum - line_follower_count[i]*3.5;
+                    desplazamiento_rot_accum = desplazamiento_rot_accum - line_follower_count[i]*3.0;
                 }
             }
         }
@@ -172,13 +175,20 @@ void calculo_rompensacion_rotacional(float velocidades_lineales_reales[VELOCITY_
 {
     // FIXME esto quiza necesitaria un if para saber si esta yendo en linea recta o no ( velocidad_lineal[2] == v_rotacional == 0 )
     // creo que no funcionaria bien para los casos que tiene que rotar, dado que esto lo que hace es tratar siempre de llevar el desplazamiento rotazional a cero
-    if(desplazamiento_rot_accum != 0)
+    if(/*desplazamiento_rot_accum != 0 &&*/ !asd)
     {
         velocidades_lineales_reales[2] = velocidades_lineales_reales[2] + (desplazamiento_rot_accum * 1.95); // se compensa la rotacion en base a cuanto desplazamiento rotacional se detecte
     }
 
+    else if(/*desplazamiento_rot_accum != 0 &&*/ asd)
+    {
+        velocidades_lineales_reales[2] = velocidades_lineales_reales[2] + (desplazamiento_rot_accum * (-4.0*velocidades_lineales_reales[1]) * 2.75); // se compensa la rotacion en base a cuanto desplazamiento rotacional se detecte
+        asd = 0;
+    }
+
     // aca se podria hacer que cambie el valor de multiplicacion si detecta un iman y luego lo vuelva al valor normal
     // otra idea seria hacer que se desplace hacia un costado
+    // otra cosa para hacer seria acortar un poco la distancia de los sensores
 }
 
 void reset_accum()

@@ -148,6 +148,8 @@ void task_motor(void *arg)
      {
         vTaskDelay(1);
 
+        // FIXME hacer una FSM para que no envie todod el tiempo las rpm a la master task
+
         if(xQueueReceive(motor_task_receive_rpm_measure_queue, &rpm_measure_item, 0) == pdTRUE)
         {
             rpm = rpm_measure_item.rpm;
