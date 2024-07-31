@@ -1,10 +1,5 @@
 #include "main.h"
 
-#define SETPOINT        (float)0        // in [m]
-#define VEL_LINEAL_X    (float)0.0      // m/seg
-#define VEL_LINEAL_Y    (float)-0.28    // m/seg
-#define VEL_ANGULAR     (float)0.0      // rpm
-
 // Cola de feedback desde las motor_task hacia master_task
 xQueueHandle master_task_feedback;
 
@@ -31,7 +26,7 @@ task_params_t task_params_B;
 task_params_t task_params_C;
 task_params_t task_params_D;
 
-//Identificador de cliente mqtt
+//Identificador de cliente MQTT
 esp_mqtt_client_handle_t mqtt_client;
 
 int wifi_flag = 1;
@@ -56,7 +51,7 @@ void rpm_measure(void *arg)
 
     while(1)
     {
-        vTaskDelay(1);
+        vTaskDelay(1/portTICK_PERIOD_MS);
 
         if(xQueueReceive(receive_pulse_count_encoder_queue, &pulse_count_event, 0) == pdTRUE)
         {
@@ -94,7 +89,7 @@ void rpm_measure(void *arg)
             rpm_measure_item.delta_distance = pulse_count_event.pulses_count * DELTA_DISTANCE_PER_SLIT;
 
             //ESP_LOGI("RPM_TASK", "rpm calculated = <%3.3f> | delta_distance = <%3.3f>", rpm_measure_item.rpm, rpm_measure_item.delta_distance);
-            xQueueSend(send_rpm_queue, &rpm_measure_item, 0);
+            xQueueSend(send_rpm_queue, &rpm_measure_item, 1);
         }
     }
 }
@@ -146,7 +141,7 @@ void task_motor(void *arg)
 
      while (1)
      {
-        vTaskDelay(1);
+        vTaskDelay(1/portTICK_PERIOD_MS);
 
         if(xQueueReceive(motor_task_receive_rpm_measure_queue, &rpm_measure_item, 0) == pdTRUE)
         {
@@ -161,7 +156,7 @@ void task_motor(void *arg)
                 {
                     rpm_index = 0;
                     master_feedback.average_rpm = calculate_average(rpm_buffer, RPM_BUFFER_SIZE);
-                    xQueueSend(master_task_feedback, &master_feedback, 0);
+                    xQueueSend(master_task_feedback, &master_feedback, 1);
                 }
             }
 
@@ -179,7 +174,7 @@ void task_motor(void *arg)
                     desired_rpm = 0;
                     master_feedback.status = TASK_STATUS_IDLE;
                     master_feedback.average_rpm = 0;
-                    xQueueSend(master_task_feedback, &master_feedback, 0);
+                    xQueueSend(master_task_feedback, &master_feedback, 1);
                 }
             }
 
@@ -313,7 +308,7 @@ void master_task(void *arg)
 
     while(1)
     {
-        vTaskDelay(1);
+        vTaskDelay(1/portTICK_PERIOD_MS);
 
         // receive line follower pulses // FIXME quiza tambien separar esto en una tarea aparte
         if(xQueueReceive(line_follower_master_rcv_queue, &line_follower_received, 0) == pdTRUE)
@@ -374,10 +369,10 @@ void master_task(void *arg)
                 last_tick = xTaskGetTickCount();
             }
 
-            xQueueSend(master_task_motor_A_rcv_queue, &motor_A_setpoint, 0);
-            xQueueSend(master_task_motor_B_rcv_queue, &motor_B_setpoint, 0);
-            xQueueSend(master_task_motor_C_rcv_queue, &motor_C_setpoint, 0);
-            xQueueSend(master_task_motor_D_rcv_queue, &motor_D_setpoint, 0);
+            xQueueSend(master_task_motor_A_rcv_queue, &motor_A_setpoint, 1);
+            xQueueSend(master_task_motor_B_rcv_queue, &motor_B_setpoint, 1);
+            xQueueSend(master_task_motor_C_rcv_queue, &motor_C_setpoint, 1);
+            xQueueSend(master_task_motor_D_rcv_queue, &motor_D_setpoint, 1);
             ESP_LOGI(TAG, "received new setpoint or kalman feedback [%2.2f -- %2.3f, %2.3f, %2.3f]", movement_vector.setpoint, velocidades_lineales[0], velocidades_lineales[1], velocidades_lineales[2]);
             //ESP_LOGI(TAG, "motor speeds [%2.2f | %2.2f | %2.2f | %2.2f]", velocidades_angulares_motores[0], velocidades_angulares_motores[1], velocidades_angulares_motores[2], velocidades_angulares_motores[3]);
 
@@ -391,9 +386,9 @@ void master_task(void *arg)
             case ST_MT_INIT:
             {
                 gpio_set_level(GPIO_READY_LED, 1);
-                vTaskDelay(250);
+                vTaskDelay(250/portTICK_PERIOD_MS);
                 gpio_set_level(GPIO_READY_LED, 0);
-                vTaskDelay(50);
+                vTaskDelay(50/portTICK_PERIOD_MS);
                 gpio_set_level(GPIO_ENABLE_MOTORS, 1);
 
                 if (wifi_flag == ESP_OK)
@@ -428,10 +423,10 @@ void master_task(void *arg)
                                 motor_D_setpoint.rpm = 0;
                                 motor_D_setpoint.setpoint = 0;
 
-                                xQueueSend(master_task_motor_A_rcv_queue, &motor_A_setpoint, 0);
-                                xQueueSend(master_task_motor_B_rcv_queue, &motor_B_setpoint, 0);
-                                xQueueSend(master_task_motor_C_rcv_queue, &motor_C_setpoint, 0);
-                                xQueueSend(master_task_motor_D_rcv_queue, &motor_D_setpoint, 0);
+                                xQueueSend(master_task_motor_A_rcv_queue, &motor_A_setpoint, 1);
+                                xQueueSend(master_task_motor_B_rcv_queue, &motor_B_setpoint, 1);
+                                xQueueSend(master_task_motor_C_rcv_queue, &motor_C_setpoint, 1);
+                                xQueueSend(master_task_motor_D_rcv_queue, &motor_D_setpoint, 1);
 
                                 send_mqtt_status_path_done();
                                 is_running = 0;
@@ -527,10 +522,10 @@ void master_task(void *arg)
                     motor_C_setpoint.setpoint = 0;
                     motor_D_setpoint.rpm = 0;
                     motor_D_setpoint.setpoint = 0;
-                    xQueueSend(master_task_motor_A_rcv_queue, &motor_A_setpoint, 0);
-                    xQueueSend(master_task_motor_B_rcv_queue, &motor_B_setpoint, 0);
-                    xQueueSend(master_task_motor_C_rcv_queue, &motor_C_setpoint, 0);
-                    xQueueSend(master_task_motor_D_rcv_queue, &motor_D_setpoint, 0);
+                    xQueueSend(master_task_motor_A_rcv_queue, &motor_A_setpoint, 1);
+                    xQueueSend(master_task_motor_B_rcv_queue, &motor_B_setpoint, 1);
+                    xQueueSend(master_task_motor_C_rcv_queue, &motor_C_setpoint, 1);
+                    xQueueSend(master_task_motor_D_rcv_queue, &motor_D_setpoint, 1);
 
                     send_mqtt_feedback_only(velocidades_lineales_reales, -1);
                     send_mqtt_feedback(delta_distance);
@@ -570,10 +565,10 @@ void master_task(void *arg)
                 motor_D_setpoint.rpm = velocidad_angular_compensada[3];
                 motor_D_setpoint.setpoint = -1;
 
-                xQueueSend(master_task_motor_A_rcv_queue, &motor_A_setpoint, 0);
-                xQueueSend(master_task_motor_B_rcv_queue, &motor_B_setpoint, 0);
-                xQueueSend(master_task_motor_C_rcv_queue, &motor_C_setpoint, 0);
-                xQueueSend(master_task_motor_D_rcv_queue, &motor_D_setpoint, 0);
+                xQueueSend(master_task_motor_A_rcv_queue, &motor_A_setpoint, 1);
+                xQueueSend(master_task_motor_B_rcv_queue, &motor_B_setpoint, 1);
+                xQueueSend(master_task_motor_C_rcv_queue, &motor_C_setpoint, 1);
+                xQueueSend(master_task_motor_D_rcv_queue, &motor_D_setpoint, 1);
 
                 send_mqtt_feedback(delta_distance);
 
@@ -599,7 +594,7 @@ void app_main(void)
     int pcnt_linefllwr_left = PCNT_UNIT_4;
     int pcnt_linefllwr_middle_0 = PCNT_UNIT_5;
     int pcnt_linefllwr_middle_1 = PCNT_UNIT_6;
-    int pcnt_linefllwr_right = PCNT_UNIT_7;
+    // int pcnt_linefllwr_right = PCNT_UNIT_7;
 
     pcnt_initialize(pcnt_encoder_left, PCNT_INPUT_SIG_IO_A);
     pcnt_initialize(pcnt_encoder_right, PCNT_INPUT_SIG_IO_B);
