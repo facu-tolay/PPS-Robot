@@ -143,6 +143,8 @@ void task_motor(void *arg)
      {
         vTaskDelay(1/portTICK_PERIOD_MS);
 
+        // FIXME hacer una FSM para que no envie todod el tiempo las rpm a la master task
+
         if(xQueueReceive(motor_task_receive_rpm_measure_queue, &rpm_measure_item, 0) == pdTRUE)
         {
             rpm = rpm_measure_item.rpm;
@@ -377,6 +379,7 @@ void master_task(void *arg)
             //ESP_LOGI(TAG, "motor speeds [%2.2f | %2.2f | %2.2f | %2.2f]", velocidades_angulares_motores[0], velocidades_angulares_motores[1], velocidades_angulares_motores[2], velocidades_angulares_motores[3]);
 
             // FIXME hacer clear de la cola de RPM master_task_feedback
+            if(!is_running) xQueueReset(master_task_feedback);
 
             state = ST_MT_GATHER_RPM;
         }
