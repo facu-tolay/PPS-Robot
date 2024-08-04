@@ -119,6 +119,8 @@ void task_motor(void *arg)
 
     motor_movement_vector_t new_setpoint;
 
+    uint8_t state = STATE_MOTOR_TASK_IDLE;
+
     // for RPM calculation
     float rpm = 0;
     uint8_t rpm_index = 0;
@@ -148,60 +150,6 @@ void task_motor(void *arg)
      {
         vTaskDelay(1);
 
-        // FIXME hacer una FSM para que no envie todod el tiempo las rpm a la master task
-
-        if(xQueueReceive(motor_task_receive_rpm_measure_queue, &rpm_measure_item, 0) == pdTRUE)
-        {
-            rpm = rpm_measure_item.rpm;
-            rpm = (motor_direction == DIRECTION_CW) ? rpm : -rpm;
-            distance_accum += rpm_measure_item.delta_distance;
-
-            if(master_feedback.status == TASK_STATUS_WORKING)
-            {
-                rpm_buffer[rpm_index++] = rpm;
-                if(rpm_index >= RPM_BUFFER_SIZE)
-                {
-                    rpm_index = 0;
-                    master_feedback.average_rpm = calculate_average(rpm_buffer, RPM_BUFFER_SIZE);
-                    xQueueSend(master_task_feedback, &master_feedback, 0);
-                }
-            }
-
-            // calculate distance setpoint
-            if(distance_accum >= objective_distance)
-            {
-                distance_accum = objective_distance;
-
-                memset(rpm_buffer, 0, sizeof(rpm_buffer));
-                rpm_index = 0;
-
-                // notify master task that has arrived
-                if(desired_rpm != 0)
-                {
-                    desired_rpm = 0;
-                    master_feedback.status = TASK_STATUS_IDLE;
-                    master_feedback.average_rpm = 0;
-                    xQueueSend(master_task_feedback, &master_feedback, 0);
-                }
-            }
-
-            // calculate new PID value and set motor speed
-            if(desired_rpm != 0)
-            {
-                pid_params.rpm_destino = desired_rpm;
-                pid_params.rpm_actual = rpm;
-
-                PID_Compute(&pid_params);
-                motorSetSpeed(task_params->assigned_motor, pid_params.output);
-            }
-            else
-            {
-                motorStop(task_params->assigned_motor);
-                pid_params._integral = 0;
-                pid_params._pre_error = 0;
-            }
-        }
-
         // receive new pid_params from master task
         if(xQueueReceive(*(task_params->master_queue_rcv), &new_setpoint, 0) == pdTRUE)
         {
@@ -225,11 +173,73 @@ void task_motor(void *arg)
                 if(new_setpoint.setpoint != 0)
                 {
                     master_feedback.status = TASK_STATUS_WORKING;
+                    state = STATE_MOTOR_TASK_RUNNING;
                 }
                 else
                 {
                     master_feedback.status = TASK_STATUS_IDLE;
+                    state = STATE_MOTOR_TASK_IDLE;
                 }
+            }
+        }
+
+        if(xQueueReceive(motor_task_receive_rpm_measure_queue, &rpm_measure_item, 0) == pdTRUE)
+        {
+            rpm = rpm_measure_item.rpm;
+            rpm = (motor_direction == DIRECTION_CW) ? rpm : -rpm;
+            distance_accum += rpm_measure_item.delta_distance;
+        }
+
+        switch(state)
+        {
+            case STATE_MOTOR_TASK_IDLE:
+            {
+                break;
+            }
+
+            case STATE_MOTOR_TASK_RUNNING:
+            {
+                rpm_buffer[rpm_index++] = rpm;
+                if(rpm_index >= RPM_BUFFER_SIZE)
+                {
+                    rpm_index = 0;
+                    master_feedback.average_rpm = calculate_average(rpm_buffer, RPM_BUFFER_SIZE);
+                    xQueueSend(master_task_feedback, &master_feedback, 0);
+                }
+
+                // calculate distance setpoint
+                if(distance_accum >= objective_distance)
+                {
+                    distance_accum = objective_distance;
+                    desired_rpm = 0;
+
+                    memset(rpm_buffer, 0, sizeof(rpm_buffer));
+                    rpm_index = 0;
+
+                    // notify master task that has arrived
+                    master_feedback.status = TASK_STATUS_IDLE;
+                    master_feedback.average_rpm = 0;
+                    xQueueSend(master_task_feedback, &master_feedback, 0);
+
+                    state = STATE_MOTOR_TASK_IDLE;
+                }
+
+                // calculate new PID value and set motor speed
+                if(desired_rpm != 0)
+                {
+                    pid_params.rpm_destino = desired_rpm;
+                    pid_params.rpm_actual = rpm;
+
+                    PID_Compute(&pid_params);
+                    motorSetSpeed(task_params->assigned_motor, pid_params.output);
+                }
+                else
+                {
+                    motorStop(task_params->assigned_motor);
+                    reset_pid_state(&pid_params);
+                }
+
+                break;
             }
         }
     }
@@ -315,7 +325,7 @@ void master_task(void *arg)
     {
         vTaskDelay(1);
 
-        // receive line follower pulses // FIXME quiza tambien separar esto en una tarea aparte
+        // receive line follower pulses
         if(xQueueReceive(line_follower_master_rcv_queue, &line_follower_received, 0) == pdTRUE)
         {
             if(linef_hysteresis_count > LINEF_HYSTERESIS)

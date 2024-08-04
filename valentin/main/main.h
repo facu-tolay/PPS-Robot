@@ -42,6 +42,11 @@
 #define ST_MT_GATHER_RPM            2
 #define ST_MT_CALC_RPM_COMP         3
 
+// MOTOR TASK states defines
+#define STATE_MOTOR_TASK_IDLE       0
+#define STATE_MOTOR_TASK_RUNNING    1
+
+
 // MQTT defines
 #define MQTT_SEND_BUFFER    192
 #define MQTT_RECV_BUFFER    64
