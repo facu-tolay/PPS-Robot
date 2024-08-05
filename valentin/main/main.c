@@ -268,7 +268,6 @@ void master_task(void *arg)
 
     line_follower_event_t line_follower_received = {0};
     int line_follower_count[HALL_SENSOR_COUNT] = {0};
-    uint8_t linef_hysteresis_count = 0;
 
     motor_task_status_t tasks_status[MOTOR_TASK_COUNT] = {
             {
@@ -328,18 +327,9 @@ void master_task(void *arg)
         // receive line follower pulses
         if(xQueueReceive(line_follower_master_rcv_queue, &line_follower_received, 0) == pdTRUE)
         {
-            if(linef_hysteresis_count > LINEF_HYSTERESIS)
-            {
-                for(int i=0; i<HALL_SENSOR_COUNT; i++)
-                {
-                    line_follower_count[i] = 0;
-                }
-                linef_hysteresis_count = 0;
-            }
-
             for(int i=0; i<HALL_SENSOR_COUNT; i++)
             {
-                line_follower_count[i] += line_follower_received.hall_sensor_count[i];
+                line_follower_count[i] = line_follower_received.hall_sensor_count[i];
             }
         }
 
@@ -374,7 +364,6 @@ void master_task(void *arg)
                 restart_pulse_counter(PCNT_UNIT_6);
                 restart_pulse_counter(PCNT_UNIT_7);
 
-                linef_hysteresis_count = 0;
                 for(int i=0; i<HALL_SENSOR_COUNT; i++)
                 {
                     line_follower_count[i] = 0;
@@ -391,7 +380,6 @@ void master_task(void *arg)
             ESP_LOGI(TAG, "received new setpoint or kalman feedback [%2.2f -- %2.3f, %2.3f, %2.3f]", movement_vector.setpoint, velocidades_lineales[0], velocidades_lineales[1], velocidades_lineales[2]);
             //ESP_LOGI(TAG, "motor speeds [%2.2f | %2.2f | %2.2f | %2.2f]", velocidades_angulares_motores[0], velocidades_angulares_motores[1], velocidades_angulares_motores[2], velocidades_angulares_motores[3]);
 
-            // FIXME hacer clear de la cola de RPM master_task_feedback
             if(!is_running) xQueueReset(master_task_feedback);
 
             state = ST_MT_GATHER_RPM;
@@ -544,8 +532,6 @@ void master_task(void *arg)
                 calculo_error_velocidades_lineales(velocidades_lineales, velocidades_lineales_reales, delta_velocidad_lineal);
 
                 calculo_matriz_cinematica_inversa(delta_velocidad_lineal, velocidad_angular_compensacion_ruedas);
-
-                linef_hysteresis_count++;
 
                 for(int i=0; i<MOTOR_TASK_COUNT; i++)
                 {
