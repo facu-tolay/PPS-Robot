@@ -172,13 +172,14 @@ void calculo_rompensacion_rotacional(float velocidades_lineales_reales[VELOCITY_
     // FIXME esto quiza necesitaria un if para saber si esta yendo en linea recta o no ( velocidad_lineal[2] == v_rotacional == 0 )
     // creo que no funcionaria bien para los casos que tiene que rotar, dado que esto lo que hace es tratar siempre de llevar el desplazamiento rotazional a cero
 
-    float velocity_dependent_factor = -4.0 * velocidades_lineales_reales[1];
+    float velocity_dependent_factor;
 
     if(line_follower_detected)
     {
         // se compensa la rotacion en base a cuanto desplazamiento rotacional se detecte y dependiendo de la velocidad de movimiento del robot.
         // Al detectar un iman, la compensacion sera mayor si la velocidad del robot es mayor. Lo contrario si el robot se mueve mas lento.
 
+        velocity_dependent_factor = -4.0 * velocidades_lineales_reales[1]; // solo depende de la velocidad en Y dado que es en el eje en el que estan colocados los sensores de linea magnetica
         velocidades_lineales_reales[2] = velocidades_lineales_reales[2] + (desplazamiento_rot_accum * velocity_dependent_factor * 2.75);
         line_follower_detected = 0;
     }
