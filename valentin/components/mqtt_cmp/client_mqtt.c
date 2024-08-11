@@ -15,7 +15,7 @@ esp_mqtt_client_handle_t mqtt_app_start(xQueueHandle *receive_queue)
         .client_id = CONFIG_ROBOT_IDD,
         .keepalive = 20,
         .disable_clean_session = true,
-        .lwt_topic = "/topic/lwt",
+        .lwt_topic = "topic/lwt",
         .lwt_msg = CONFIG_ROBOT_IDD,
         .lwt_msg_len = 5
     };
@@ -23,9 +23,9 @@ esp_mqtt_client_handle_t mqtt_app_start(xQueueHandle *receive_queue)
     client = esp_mqtt_client_init(&mqtt_cfg);
     ESP_ERROR_CHECK(esp_mqtt_client_register_event(client, ESP_EVENT_ANY_ID, mqtt_event_handler, (void*)receive_queue)); // the last argument is used to pass data to the event handler
     ESP_ERROR_CHECK(esp_mqtt_client_start(client));
-    sprintf(topic_robot_register, "/topic/register");
-    sprintf(topic_receive_setpoint, "/topic/setpoint/%s", mqtt_cfg.client_id);
-    sprintf(topic_robot_feedback, "/topic/live/%s", mqtt_cfg.client_id);
+    sprintf(topic_robot_register, "topic/register");
+    sprintf(topic_receive_setpoint, "topic/setpoint/%s", mqtt_cfg.client_id);
+    sprintf(topic_robot_feedback, "topic/live/%s", mqtt_cfg.client_id);
     return client;
 }
 
@@ -52,6 +52,7 @@ void mqtt_event_handler(void *handler_args, esp_event_base_t base, int32_t event
                 ESP_LOGE(TAG, "error in subscribe topic, msg_id=%d", msg_id);
                 break;
             }
+            ESP_LOGI(TAG, "MQTT connected");
             break;
         }
 
@@ -108,12 +109,23 @@ void mqtt_event_handler(void *handler_args, esp_event_base_t base, int32_t event
     }
 }
 
-void send_mqtt_feedback(float velocidades_lineales_reales[VELOCITY_VECTOR_SIZE], float *delta_distance)
+void send_mqtt_feedback(float *delta_distance)
 {
     char buffer[90];
-    sprintf(buffer, "{\"dx\":%2.3f, \"vx\":%2.3f, \"dy\":%2.3f, \"vy\":%2.3f, \"dr\":%2.3f, \"vr\":%2.3f}", delta_distance[0], velocidades_lineales_reales[0], delta_distance[1], velocidades_lineales_reales[1], delta_distance[2], velocidades_lineales_reales[2]);
+    sprintf(buffer, "{\"dx\": %2.3f, \"dy\": %2.3f, \"dr\": %2.3f}", delta_distance[0], delta_distance[1], delta_distance[2]);
 
-    if (esp_mqtt_client_publish(client, topic_robot_feedback, buffer, 0, 0, 0) == ESP_FAIL)
+    if (esp_mqtt_client_publish(client, "topic/robot_feedback_delta", buffer, 0, 0, 0) == ESP_FAIL)
+    {
+        ESP_LOGE(TAG, "error in publish msg");
+    }
+}
+
+void send_mqtt_feedback_only(float velocidades_lineales_reales[VELOCITY_VECTOR_SIZE], int indice)
+{
+    char buffer[90];
+    sprintf(buffer, "{\"i\": %d, \"vx\": %2.3f, \"vy\": %2.3f, \"vr\": %2.3f}", indice, velocidades_lineales_reales[0], velocidades_lineales_reales[1], velocidades_lineales_reales[2]);
+
+    if (esp_mqtt_client_publish(client, "topic/robot_feedback_vel", buffer, 0, 0, 0) == ESP_FAIL)
     {
         ESP_LOGE(TAG, "error in publish msg");
     }
@@ -148,6 +160,15 @@ void forward_robot_feedback(xQueueHandle *receive_queue, movement_vector_t *moto
         ESP_LOGE(TAG, "error in send robot values");
     }
 }
+
+void send_mqtt_log(char* buffer, char* topic)
+{
+    if (esp_mqtt_client_publish(client, topic, buffer, 0, 0, 0) == ESP_FAIL)
+    {
+        ESP_LOGE(TAG, "error in publish msg");
+    }
+}
+
 
 int process_robot_feedback(const char *data, movement_vector_t *motor_values)
 {
