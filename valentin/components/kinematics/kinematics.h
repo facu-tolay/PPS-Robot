@@ -44,5 +44,6 @@ void calculo_compensacion_linea_magnetica(uint8_t is_velocidad_rotacional_zero, 
 void calculo_rompensacion_rotacional(float velocidades_lineales_reales[VELOCITY_VECTOR_SIZE]);
 void reset_accum();
 uint8_t robot_in_radius_of_setpoint(float desired_setpoint, float *current_position);
+void rotacion_plena(float *velocidades_lineales, int *flag_rotacion);
 
 #endif /* COMPONENTS_KINEMATICS_KINEMATICS_H_ */

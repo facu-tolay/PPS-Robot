@@ -248,6 +248,8 @@ void master_task(void *arg)
     uint8_t state = ST_MT_INIT;
     uint8_t is_running = 0;
 
+    int flag_rotacion = 1;
+
     master_task_feedback_t feedback_received = {0};
     movement_vector_t movement_vector = {0};
 
@@ -336,6 +338,7 @@ void master_task(void *arg)
             velocidades_lineales[0] = movement_vector.velocidad_lineal_x; // FIXME esto se podria optimizar haciendo que ya venga cargado como arreglo desde mqtt
             velocidades_lineales[1] = movement_vector.velocidad_lineal_y;
             velocidades_lineales[2] = movement_vector.velocidad_angular;
+            rotacion_plena(velocidades_lineales, &flag_rotacion);
             calculo_matriz_cinematica_inversa(velocidades_lineales, velocidades_angulares_motores);
 
             motor_A_setpoint.rpm = velocidades_angulares_motores[0];
@@ -535,16 +538,19 @@ void master_task(void *arg)
                     send_mqtt_status_path_done();
 
                     is_running = 0;
+                    flag_rotacion = 1;
                     state = ST_MT_IDLE;
                     break;
                 }
 
-                calculo_compensacion_linea_magnetica((velocidades_lineales[2] == 0), velocidades_lineales_reales, line_follower_count);
-                send_mqtt_feedback_only(velocidades_lineales_reales, 1);
+                if (flag_rotacion)
+                {
+                    calculo_compensacion_linea_magnetica((velocidades_lineales[2] == 0), velocidades_lineales_reales, line_follower_count);
+                    send_mqtt_feedback_only(velocidades_lineales_reales, 1);
 
-                calculo_rompensacion_rotacional(velocidades_lineales_reales);
-                send_mqtt_feedback_only(velocidades_lineales_reales, 2);
-
+                    calculo_rompensacion_rotacional(velocidades_lineales_reales);
+                    send_mqtt_feedback_only(velocidades_lineales_reales, 2);
+                }
                 calculo_error_velocidades_lineales(velocidades_lineales, velocidades_lineales_reales, delta_velocidad_lineal);
                 send_mqtt_feedback_only(velocidades_lineales_reales, 3);
 

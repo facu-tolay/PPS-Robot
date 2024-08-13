@@ -206,5 +206,19 @@ uint8_t robot_in_radius_of_setpoint(float desired_setpoint, float *current_posit
 {
     float delta_x = fabs(current_position[0] - desired_setpoint);
     float delta_y = fabs(current_position[1] - desired_setpoint);
-    return (delta_x <= MIN_DESTINATION_RADIUS || current_position[0] >= desired_setpoint || delta_y <= MIN_DESTINATION_RADIUS || current_position[1] >= desired_setpoint);
+    float delta_z = fabs(current_position[2] - desired_setpoint);
+    return (delta_x <= MIN_DESTINATION_RADIUS || current_position[0] >= desired_setpoint ||
+            delta_y <= MIN_DESTINATION_RADIUS || current_position[1] >= desired_setpoint ||
+            delta_z <= MIN_DESTINATION_RADIUS || current_position[2] >= desired_setpoint*100);
+        //La posición en Z aumenta muy rápido ya que la velocidad rotacional debe ser un valor
+        // alto para que la rueda genere un movimiento, esto hace que llegue a destino muy pronto,
+        // se multiplica ese valor para asemejarlo a una velocidad lineal
+}
+
+void rotacion_plena(float *velocidades_lineales, int *flag_rotacion)
+{
+    if (velocidades_lineales[0] == (float)0 && velocidades_lineales[1] == (float)0 && velocidades_lineales[2] != (float)0)
+    {
+        *flag_rotacion = 0;
+    }
 }
