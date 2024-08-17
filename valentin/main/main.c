@@ -355,14 +355,7 @@ void master_task(void *arg)
 
             if(!is_running)
             {
-                restart_pulse_counter(PCNT_UNIT_0);
-                restart_pulse_counter(PCNT_UNIT_1);
-                restart_pulse_counter(PCNT_UNIT_2);
-                restart_pulse_counter(PCNT_UNIT_3);
-                restart_pulse_counter(PCNT_UNIT_4);
-                restart_pulse_counter(PCNT_UNIT_5);
-                restart_pulse_counter(PCNT_UNIT_6);
-                restart_pulse_counter(PCNT_UNIT_7);
+                reset_pulse_counters();
 
                 linef_hysteresis_count = 0;
                 for(int i=0; i<HALL_SENSOR_COUNT; i++)
@@ -536,6 +529,8 @@ void master_task(void *arg)
                     send_mqtt_feedback_only(velocidades_lineales_reales, -1);
                     send_mqtt_feedback(delta_distance);
                     send_mqtt_status_path_done();
+
+                   if(!flag_rotacion) reset_accum();
 
                     is_running = 0;
                     flag_rotacion = 1;
@@ -720,4 +715,16 @@ void IRAM_ATTR isr_timer_handler_wheel_encoder(void *param)
     timer_group_enable_alarm_in_isr(TIMER_GROUP_0, timer_idx);
     timer_spinlock_give(TIMER_GROUP_0);
     return;
+}
+
+void reset_pulse_counters()
+{
+    restart_pulse_counter(PCNT_UNIT_0);
+    restart_pulse_counter(PCNT_UNIT_1);
+    restart_pulse_counter(PCNT_UNIT_2);
+    restart_pulse_counter(PCNT_UNIT_3);
+    restart_pulse_counter(PCNT_UNIT_4);
+    restart_pulse_counter(PCNT_UNIT_5);
+    restart_pulse_counter(PCNT_UNIT_6);
+    restart_pulse_counter(PCNT_UNIT_7);
 }
