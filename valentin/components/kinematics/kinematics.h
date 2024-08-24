@@ -27,6 +27,7 @@ typedef struct {
 #pragma pack(pop)
 
 #define VELOCITY_VECTOR_SIZE    3
+#define RPM_TO_RAD_CONST        0.104719
 
 /*
  * For sending new setpoints to motor tasks

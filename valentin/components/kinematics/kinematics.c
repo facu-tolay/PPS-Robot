@@ -124,12 +124,16 @@ void calculo_error_velocidades_lineales(float *velocidad_lineal, float *velocida
 
 void calculo_distancia_recorrida_acumulada(float *velocidad_lineal_real, float delta_t, float *distancia_accum, float *delta_distance)
 {
-    for (int i=0; i<VELOCITY_VECTOR_SIZE; i++)
+    for (int i=0; i<VELOCITY_VECTOR_SIZE-1; i++)
     {
         delta_distance[i] = fabs(velocidad_lineal_real[i]) * delta_t;
         desplazamiento_accum[i] = desplazamiento_accum[i] + delta_distance[i];
         distancia_accum[i] = desplazamiento_accum[i];
     }
+    delta_distance[2] = fabs(velocidad_lineal_real[2]*RPM_TO_RAD_CONST*ROBOT_RADIUS) * delta_t;
+    desplazamiento_accum[2] = desplazamiento_accum[2] + delta_distance[2];
+    distancia_accum[2] = desplazamiento_accum[2];
+    // desplazamiento_rot_accum = desplazamiento_rot_accum + delta_distance[2];
     desplazamiento_rot_accum = desplazamiento_rot_accum + velocidad_lineal_real[2] * delta_t;
 }
 
@@ -207,12 +211,10 @@ uint8_t robot_in_radius_of_setpoint(float desired_setpoint, float *current_posit
     float delta_x = fabs(current_position[0] - desired_setpoint);
     float delta_y = fabs(current_position[1] - desired_setpoint);
     float delta_z = fabs(current_position[2] - desired_setpoint);
+    ESP_LOGI("roatcion", "%f", current_position[2]);
     return (delta_x <= MIN_DESTINATION_RADIUS || current_position[0] >= desired_setpoint ||
             delta_y <= MIN_DESTINATION_RADIUS || current_position[1] >= desired_setpoint ||
-            delta_z <= MIN_DESTINATION_RADIUS || current_position[2] >= desired_setpoint*100);
-        //La posición en Z aumenta muy rápido ya que la velocidad rotacional debe ser un valor
-        // alto para que la rueda genere un movimiento, esto hace que llegue a destino muy pronto,
-        // se multiplica ese valor para asemejarlo a una velocidad lineal
+            delta_z <= MIN_DESTINATION_RADIUS || current_position[2] >= desired_setpoint);
 }
 
 void rotacion_plena(float *velocidades_lineales, int *flag_rotacion)

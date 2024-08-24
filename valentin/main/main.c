@@ -32,6 +32,12 @@ esp_mqtt_client_handle_t mqtt_client;
 int wifi_flag = 1;
 static const char *TAG = "master_task";
 
+// Histeresis de los sensores magneticos
+uint8_t linef_hysteresis_count = 0;
+
+// Arreglo acorde a la cantidad de sensores
+static int line_follower_count[HALL_SENSOR_COUNT];
+
 void rpm_measure(void *arg)
 {
     rpm_task_parameters_t *rpm_task_parameters = (rpm_task_parameters_t *) arg;
@@ -90,6 +96,34 @@ void rpm_measure(void *arg)
 
             //ESP_LOGI("RPM_TASK", "rpm calculated = <%3.3f> | delta_distance = <%3.3f>", rpm_measure_item.rpm, rpm_measure_item.delta_distance);
             xQueueSend(send_rpm_queue, &rpm_measure_item, 1);
+        }
+    }
+}
+
+void task_hysteresis_count(void *arg)
+{
+    line_follower_event_t line_follower_received = {0};
+
+    while (1)
+    {
+        vTaskDelay(1/portTICK_PERIOD_MS);
+
+    // receive line follower pulses // FIXME quiza tambien separar esto en una tarea aparte
+        if(xQueueReceiveFromISR(line_follower_master_rcv_queue, &line_follower_received, 0) == pdTRUE)
+        {
+            if(linef_hysteresis_count > LINEF_HYSTERESIS)
+            {
+                for(int i=0; i<HALL_SENSOR_COUNT; i++)
+                {
+                    line_follower_count[i] = 0;
+                }
+                linef_hysteresis_count = 0;
+            }
+
+            for(int i=0; i<HALL_SENSOR_COUNT; i++)
+            {
+                line_follower_count[i] += line_follower_received.hall_sensor_count[i];
+            }
         }
     }
 }
@@ -253,10 +287,6 @@ void master_task(void *arg)
     master_task_feedback_t feedback_received = {0};
     movement_vector_t movement_vector = {0};
 
-    line_follower_event_t line_follower_received = {0};
-    int line_follower_count[HALL_SENSOR_COUNT] = {0};
-    uint8_t linef_hysteresis_count = 0;
-
     motor_task_status_t tasks_status[MOTOR_TASK_COUNT] = {
             {
                 .status = TASK_STATUS_IDLE,
@@ -314,72 +344,6 @@ void master_task(void *arg)
     {
         vTaskDelay(1/portTICK_PERIOD_MS);
 
-        // receive line follower pulses // FIXME quiza tambien separar esto en una tarea aparte
-        if(xQueueReceive(line_follower_master_rcv_queue, &line_follower_received, 0) == pdTRUE)
-        {
-            if(linef_hysteresis_count > LINEF_HYSTERESIS)
-            {
-                for(int i=0; i<HALL_SENSOR_COUNT; i++)
-                {
-                    line_follower_count[i] = 0;
-                }
-                linef_hysteresis_count = 0;
-            }
-
-            for(int i=0; i<HALL_SENSOR_COUNT; i++)
-            {
-                line_follower_count[i] += line_follower_received.hall_sensor_count[i];
-            }
-        }
-
-        // receive new setpoint from MQTT
-        if (xQueueReceive(master_task_receive_setpoint_queue, &movement_vector, 0) == pdTRUE)
-        {
-            velocidades_lineales[0] = movement_vector.velocidad_lineal_x; // FIXME esto se podria optimizar haciendo que ya venga cargado como arreglo desde mqtt
-            velocidades_lineales[1] = movement_vector.velocidad_lineal_y;
-            velocidades_lineales[2] = movement_vector.velocidad_angular;
-            rotacion_plena(velocidades_lineales, &flag_rotacion);
-            calculo_matriz_cinematica_inversa(velocidades_lineales, velocidades_angulares_motores);
-
-            motor_A_setpoint.rpm = velocidades_angulares_motores[0];
-            motor_B_setpoint.rpm = velocidades_angulares_motores[1];
-            motor_C_setpoint.rpm = velocidades_angulares_motores[2];
-            motor_D_setpoint.rpm = velocidades_angulares_motores[3];
-            motor_A_setpoint.setpoint = movement_vector.setpoint;
-            motor_B_setpoint.setpoint = movement_vector.setpoint;
-            motor_C_setpoint.setpoint = movement_vector.setpoint;
-            motor_D_setpoint.setpoint = movement_vector.setpoint;
-            desired_setpoint = movement_vector.setpoint;
-
-            reset_accum();
-
-            if(!is_running)
-            {
-                reset_pulse_counters();
-
-                linef_hysteresis_count = 0;
-                for(int i=0; i<HALL_SENSOR_COUNT; i++)
-                {
-                    line_follower_count[i] = 0;
-                }
-
-                is_running = 1;
-                last_tick = xTaskGetTickCount();
-            }
-
-            xQueueSend(master_task_motor_A_rcv_queue, &motor_A_setpoint, 1);
-            xQueueSend(master_task_motor_B_rcv_queue, &motor_B_setpoint, 1);
-            xQueueSend(master_task_motor_C_rcv_queue, &motor_C_setpoint, 1);
-            xQueueSend(master_task_motor_D_rcv_queue, &motor_D_setpoint, 1);
-            ESP_LOGI(TAG, "received new setpoint or kalman feedback [%2.2f -- %2.3f, %2.3f, %2.3f]", movement_vector.setpoint, velocidades_lineales[0], velocidades_lineales[1], velocidades_lineales[2]);
-            //ESP_LOGI(TAG, "motor speeds [%2.2f | %2.2f | %2.2f | %2.2f]", velocidades_angulares_motores[0], velocidades_angulares_motores[1], velocidades_angulares_motores[2], velocidades_angulares_motores[3]);
-
-            // FIXME hacer clear de la cola de RPM master_task_feedback
-            if(!is_running) xQueueReset(master_task_feedback);
-
-            state = ST_MT_GATHER_RPM;
-        }
-
         switch(state)
         {
             case ST_MT_INIT:
@@ -399,6 +363,59 @@ void master_task(void *arg)
 
             case ST_MT_IDLE:
             {
+                if (xQueueReceive(master_task_receive_setpoint_queue, &movement_vector, 0) == pdTRUE)
+                {
+                    velocidades_lineales[0] = movement_vector.velocidad_lineal_x; // FIXME esto se podria optimizar haciendo que ya venga cargado como arreglo desde mqtt
+                    velocidades_lineales[1] = movement_vector.velocidad_lineal_y;
+                    velocidades_lineales[2] = movement_vector.velocidad_angular;
+                    rotacion_plena(velocidades_lineales, &flag_rotacion);
+                    calculo_matriz_cinematica_inversa(velocidades_lineales, velocidades_angulares_motores);
+
+                    motor_A_setpoint.rpm = velocidades_angulares_motores[0];
+                    motor_B_setpoint.rpm = velocidades_angulares_motores[1];
+                    motor_C_setpoint.rpm = velocidades_angulares_motores[2];
+                    motor_D_setpoint.rpm = velocidades_angulares_motores[3];
+                    motor_A_setpoint.setpoint = movement_vector.setpoint;
+                    motor_B_setpoint.setpoint = movement_vector.setpoint;
+                    motor_C_setpoint.setpoint = movement_vector.setpoint;
+                    motor_D_setpoint.setpoint = movement_vector.setpoint;
+                    desired_setpoint = movement_vector.setpoint;
+
+                    reset_accum();
+
+                    if(!is_running)
+                    {
+                        restart_pulse_counter(PCNT_UNIT_0);
+                        restart_pulse_counter(PCNT_UNIT_1);
+                        restart_pulse_counter(PCNT_UNIT_2);
+                        restart_pulse_counter(PCNT_UNIT_3);
+                        restart_pulse_counter(PCNT_UNIT_4);
+                        restart_pulse_counter(PCNT_UNIT_5);
+                        restart_pulse_counter(PCNT_UNIT_6);
+                        restart_pulse_counter(PCNT_UNIT_7);
+
+                        linef_hysteresis_count = 0;
+                        for(int i=0; i<HALL_SENSOR_COUNT; i++)
+                        {
+                            line_follower_count[i] = 0;
+                        }
+
+                        is_running = 1;
+                        last_tick = xTaskGetTickCount();
+                    }
+
+                    xQueueSend(master_task_motor_A_rcv_queue, &motor_A_setpoint, 1);
+                    xQueueSend(master_task_motor_B_rcv_queue, &motor_B_setpoint, 1);
+                    xQueueSend(master_task_motor_C_rcv_queue, &motor_C_setpoint, 1);
+                    xQueueSend(master_task_motor_D_rcv_queue, &motor_D_setpoint, 1);
+                    ESP_LOGI(TAG, "received new setpoint or kalman feedback [%2.2f -- %2.3f, %2.3f, %2.3f]", movement_vector.setpoint, velocidades_lineales[0], velocidades_lineales[1], velocidades_lineales[2]);
+                    //ESP_LOGI(TAG, "motor speeds [%2.2f | %2.2f | %2.2f | %2.2f]", velocidades_angulares_motores[0], velocidades_angulares_motores[1], velocidades_angulares_motores[2], velocidades_angulares_motores[3]);
+
+                    // FIXME hacer clear de la cola de RPM master_task_feedback
+                    if(!is_running) xQueueReset(master_task_feedback);
+
+                    state = ST_MT_GATHER_RPM;
+                }
                 break;
             }
 
@@ -634,6 +651,7 @@ void app_main(void)
     mqtt_client = mqtt_app_start(&master_task_receive_setpoint_queue);
 
     xTaskCreate(master_task, "master_task", 3072, NULL, 10, NULL);
+    xTaskCreate(task_hysteresis_count, "task_hysteresis_count", 2048, NULL, 8, NULL);
 
     return;
 }
@@ -715,16 +733,4 @@ void IRAM_ATTR isr_timer_handler_wheel_encoder(void *param)
     timer_group_enable_alarm_in_isr(TIMER_GROUP_0, timer_idx);
     timer_spinlock_give(TIMER_GROUP_0);
     return;
-}
-
-void reset_pulse_counters()
-{
-    restart_pulse_counter(PCNT_UNIT_0);
-    restart_pulse_counter(PCNT_UNIT_1);
-    restart_pulse_counter(PCNT_UNIT_2);
-    restart_pulse_counter(PCNT_UNIT_3);
-    restart_pulse_counter(PCNT_UNIT_4);
-    restart_pulse_counter(PCNT_UNIT_5);
-    restart_pulse_counter(PCNT_UNIT_6);
-    restart_pulse_counter(PCNT_UNIT_7);
 }

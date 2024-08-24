@@ -116,7 +116,7 @@ typedef struct {
 void task_motor(void *arg);
 void master_task(void *arg);
 void motor_task_creator(task_params_t *param_motor, char *taskName, uint8_t assignedMotor, xQueueHandle *masterReceiveQueue, xQueueHandle *encoderLineFllwrReceiveQueue);
-void reset_pulse_counters();
+void task_hysteresis_count(void *arg);
 void IRAM_ATTR isr_timer_handler_line_follower(void *param);
 void IRAM_ATTR isr_timer_handler_wheel_encoder(void *param);
 
