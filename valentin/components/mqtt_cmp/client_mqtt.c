@@ -109,12 +109,12 @@ void mqtt_event_handler(void *handler_args, esp_event_base_t base, int32_t event
     }
 }
 
-void send_mqtt_feedback(float *delta_distance)
+void send_mqtt_feedback(float velocidades_lineales_reales[VELOCITY_VECTOR_SIZE], float *delta_distance)
 {
     char buffer[90];
-    sprintf(buffer, "{\"dx\": %2.3f, \"dy\": %2.3f, \"dr\": %2.3f}", delta_distance[0], delta_distance[1], delta_distance[2]);
+    sprintf(buffer, "{\"dx\":%2.3f, \"vx\":%2.3f, \"dy\":%2.3f, \"vy\":%2.3f, \"dr\":%2.3f, \"vr\":%2.3f}", delta_distance[0], velocidades_lineales_reales[0], delta_distance[1], velocidades_lineales_reales[1], delta_distance[2], velocidades_lineales_reales[2]);
 
-    if (esp_mqtt_client_publish(client, "topic/robot_feedback_delta", buffer, 0, 0, 0) == ESP_FAIL)
+    if (esp_mqtt_client_publish(client, topic_robot_feedback, buffer, 0, 0, 0) == ESP_FAIL)
     {
         ESP_LOGE(TAG, "error in publish msg");
     }
