@@ -42,7 +42,7 @@ void calculo_matriz_cinematica_directa(float *vector_velocidad_angular, float *v
 void calculo_error_velocidades_lineales(float *velocidad_lineal, float *velocidad_lineal_real, float *delta_velocidad_lineal);
 void calculo_distancia_recorrida_acumulada(float *velocidad_lineal_real, float delta_t, float *distancia_accum, float *delta_distance);
 void calculo_compensacion_linea_magnetica(uint8_t is_velocidad_rotacional_zero, float velocidades_lineales_reales[VELOCITY_VECTOR_SIZE], int line_follower_count[HALL_SENSOR_COUNT]);
-void calculo_rompensacion_rotacional(float velocidades_lineales_reales[VELOCITY_VECTOR_SIZE]);
+void calculo_compensacion_rotacional(float velocidades_lineales_reales[VELOCITY_VECTOR_SIZE]);
 void reset_accum();
 uint8_t robot_in_radius_of_setpoint(float desired_setpoint, float *current_position);
 void rotacion_plena(float *velocidades_lineales, int *flag_rotacion);

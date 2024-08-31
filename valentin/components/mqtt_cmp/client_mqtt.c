@@ -123,9 +123,9 @@ void send_mqtt_feedback(float *delta_distance)
 void send_mqtt_feedback_only(float velocidades_lineales_reales[VELOCITY_VECTOR_SIZE], int indice)
 {
     char buffer[90];
-    sprintf(buffer, "{\"i\": %d, \"vx\": %2.3f, \"vy\": %2.3f, \"vr\": %2.3f}", indice, velocidades_lineales_reales[0], velocidades_lineales_reales[1], velocidades_lineales_reales[2]);
+    sprintf(buffer, "{\"vr\": %2.3f}", velocidades_lineales_reales[2]);
 
-    if (esp_mqtt_client_publish(client, "topic/robot_feedback_vel", buffer, 0, 0, 0) == ESP_FAIL)
+    if (esp_mqtt_client_publish(client, "topic/z", buffer, 0, 0, 0) == ESP_FAIL)
     {
         ESP_LOGE(TAG, "error in publish msg");
     }

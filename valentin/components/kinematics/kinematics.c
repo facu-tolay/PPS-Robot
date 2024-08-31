@@ -171,12 +171,12 @@ void calculo_compensacion_linea_magnetica(uint8_t is_velocidad_rotacional_zero, 
     }
 }
 
-void calculo_rompensacion_rotacional(float velocidades_lineales_reales[VELOCITY_VECTOR_SIZE])
+void calculo_compensacion_rotacional(float velocidades_lineales_reales[VELOCITY_VECTOR_SIZE])
 {
     // FIXME esto quiza necesitaria un if para saber si esta yendo en linea recta o no ( velocidad_lineal[2] == v_rotacional == 0 )
     // creo que no funcionaria bien para los casos que tiene que rotar, dado que esto lo que hace es tratar siempre de llevar el desplazamiento rotazional a cero
 
-    float velocity_dependent_factor = -4.0 * velocidades_lineales_reales[1];
+    float velocity_dependent_factor = -3.6 * velocidades_lineales_reales[1];
 
     if(line_follower_detected)
     {
@@ -214,7 +214,7 @@ uint8_t robot_in_radius_of_setpoint(float desired_setpoint, float *current_posit
     ESP_LOGI("roatcion", "%f", current_position[2]);
     return (delta_x <= MIN_DESTINATION_RADIUS || current_position[0] >= desired_setpoint ||
             delta_y <= MIN_DESTINATION_RADIUS || current_position[1] >= desired_setpoint ||
-            delta_z <= MIN_DESTINATION_RADIUS || current_position[2] >= desired_setpoint);
+            delta_z <= MIN_DESTINATION_RADIUS_Z || current_position[2] >= desired_setpoint);
 }
 
 void rotacion_plena(float *velocidades_lineales, int *flag_rotacion)
