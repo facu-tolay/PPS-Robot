@@ -36,5 +36,4 @@ void send_mqtt_register_request();
 void forward_robot_feedback(xQueueHandle *receive_queue, movement_vector_t *motor_values);
 int process_robot_feedback(const char *data, movement_vector_t *motor_values);
 int register_robot(const char *data, char *robot_name);
-void send_mqtt_log(char* buffer, char* topic);
-void send_mqtt_feedback_only(float velocidades_lineales_reales[VELOCITY_VECTOR_SIZE], int indice);
+void send_mqtt_log(char *buffer, char *topic);
