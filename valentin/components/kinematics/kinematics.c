@@ -145,22 +145,22 @@ void calculo_compensacion_linea_magnetica(uint8_t is_velocidad_rotacional_zero, 
             {
                 if(i==0)
                 {
-                    desplazamiento_rot_accum = desplazamiento_rot_accum + line_follower_count[i]*3.0;
+                    desplazamiento_rot_accum = desplazamiento_rot_accum - line_follower_count[i]*3.0;
                 }
                 else
                 {
-                    desplazamiento_rot_accum = desplazamiento_rot_accum - line_follower_count[i]*3.0;
+                    desplazamiento_rot_accum = desplazamiento_rot_accum + line_follower_count[i]*3.0;
                 }
             }
             else
             {
                 if(i==0)
                 {
-                    desplazamiento_rot_accum = desplazamiento_rot_accum + line_follower_count[i]*3.0;
+                    desplazamiento_rot_accum = desplazamiento_rot_accum - line_follower_count[i]*3.0;
                 }
                 else
                 {
-                    desplazamiento_rot_accum = desplazamiento_rot_accum - line_follower_count[i]*3.0;
+                    desplazamiento_rot_accum = desplazamiento_rot_accum + line_follower_count[i]*3.0;
                 }
             }
         }
