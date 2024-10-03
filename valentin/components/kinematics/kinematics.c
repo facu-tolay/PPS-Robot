@@ -206,15 +206,21 @@ void reset_accum()
     }
 }
 
-uint8_t robot_in_radius_of_setpoint(float desired_setpoint, float *current_position)
+uint8_t robot_in_radius_of_setpoint(uint8_t is_rotating, float desired_setpoint, float *current_position)
 {
     float delta_x = fabs(current_position[0] - desired_setpoint);
     float delta_y = fabs(current_position[1] - desired_setpoint);
     float delta_z = fabs(current_position[2] - desired_setpoint);
-    ESP_LOGI("roatcion", "%f", current_position[2]);
-    return (delta_x <= MIN_DESTINATION_RADIUS || current_position[0] >= desired_setpoint ||
-            delta_y <= MIN_DESTINATION_RADIUS || current_position[1] >= desired_setpoint ||
-            delta_z <= MIN_DESTINATION_RADIUS_Z || current_position[2] >= desired_setpoint);
+
+    if(!is_rotating)
+    {
+        return (delta_z <= MIN_DESTINATION_RADIUS_Z || current_position[2] >= desired_setpoint);
+    }
+    else
+    {
+        return (delta_x <= MIN_DESTINATION_RADIUS || current_position[0] >= desired_setpoint ||
+                delta_y <= MIN_DESTINATION_RADIUS || current_position[1] >= desired_setpoint);
+    }
 }
 
 void rotacion_plena(float *velocidades_lineales, int *flag_rotacion)

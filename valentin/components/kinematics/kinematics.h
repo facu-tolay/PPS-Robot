@@ -44,7 +44,7 @@ void calculo_distancia_recorrida_acumulada(float *velocidad_lineal_real, float d
 void calculo_compensacion_linea_magnetica(uint8_t is_velocidad_rotacional_zero, float velocidades_lineales_reales[VELOCITY_VECTOR_SIZE], int line_follower_count[HALL_SENSOR_COUNT]);
 void calculo_compensacion_rotacional(float velocidades_lineales_reales[VELOCITY_VECTOR_SIZE]);
 void reset_accum();
-uint8_t robot_in_radius_of_setpoint(float desired_setpoint, float *current_position);
+uint8_t robot_in_radius_of_setpoint(uint8_t is_rotating, float desired_setpoint, float *current_position);
 void rotacion_plena(float *velocidades_lineales, int *flag_rotacion);
 
 #endif /* COMPONENTS_KINEMATICS_KINEMATICS_H_ */

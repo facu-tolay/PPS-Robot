@@ -245,7 +245,7 @@ void task_motor(void *arg)
 
             if(new_setpoint.setpoint >= 0)
             {
-                objective_distance = new_setpoint.setpoint + 0.3;
+                objective_distance = new_setpoint.setpoint + 0.5;
                 distance_accum = 0;
 
                 memset(rpm_buffer, 0, sizeof(rpm_buffer));
@@ -282,7 +282,7 @@ void master_task(void *arg)
     uint8_t state = ST_MT_INIT;
     uint8_t is_running = 0;
 
-    int flag_rotacion = 1;
+    uint8_t flag_rotacion = 1;
 
     master_task_feedback_t feedback_received = {0};
     movement_vector_t movement_vector = {0};
@@ -530,7 +530,7 @@ void master_task(void *arg)
                 calculo_distancia_recorrida_acumulada(velocidades_lineales_reales, delta_t, distancia_accum, delta_distance);
                 //ESP_LOGI(TAG, "recorrido accum: x=%2.3f / y=%2.3f / r=%2.3f   || delta_t: %2.3f", distancia_accum[0], distancia_accum[1], distancia_accum[2], delta_t);
 
-                if(robot_in_radius_of_setpoint(desired_setpoint, distancia_accum))
+                if(robot_in_radius_of_setpoint(flag_rotacion, desired_setpoint, distancia_accum))
                 {
                     motor_A_setpoint.rpm = 0;
                     motor_A_setpoint.setpoint = 0;
