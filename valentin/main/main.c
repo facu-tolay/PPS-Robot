@@ -521,7 +521,7 @@ void master_task(void *arg)
                     xQueueSend(master_task_motor_D_rcv_queue, &motor_D_setpoint, 0);
 
                     send_mqtt_feedback(velocidades_lineales_reales, delta_distance);
-                    send_mqtt_status_path_done();
+                    // send_mqtt_status_path_done();
 
                     if(!flag_rotacion) reset_accum();
 
