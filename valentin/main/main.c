@@ -59,7 +59,7 @@ void rpm_measure(void *arg)
     {
         vTaskDelay(1/portTICK_PERIOD_MS);
 
-        if(xQueueReceiveFromISR(receive_pulse_count_encoder_queue, &pulse_count_event, 0) == pdTRUE)
+        if(xQueueReceive(receive_pulse_count_encoder_queue, &pulse_count_event, 0) == pdTRUE)
         {
             pulses_buffer[pulses_buffer_write_index] = pulse_count_event.pulses_count;
             pulses_buffer_read_index = pulses_buffer_write_index;
@@ -93,8 +93,6 @@ void rpm_measure(void *arg)
 
             rpm_measure_item.rpm = (hold_up_count / CANT_RANURAS_ENCODER) * (1.0 / (measure_count * TIMER_INTERVAL_RPM_MEASURE)) * 60.0;
             rpm_measure_item.delta_distance = pulse_count_event.pulses_count * DELTA_DISTANCE_PER_SLIT;
-
-            //ESP_LOGI("RPM_TASK", "rpm calculated = <%3.3f> | delta_distance = <%3.3f>", rpm_measure_item.rpm, rpm_measure_item.delta_distance);
             xQueueSend(send_rpm_queue, &rpm_measure_item, 0);
         }
     }
@@ -108,8 +106,8 @@ void task_hysteresis_count(void *arg)
     {
         vTaskDelay(1/portTICK_PERIOD_MS);
 
-    // receive line follower pulses // FIXME quiza tambien separar esto en una tarea aparte
-        if(xQueueReceiveFromISR(line_follower_master_rcv_queue, &line_follower_received, 0) == pdTRUE)
+        // receive line follower pulses
+        if(xQueueReceive(line_follower_master_rcv_queue, &line_follower_received, 0) == pdTRUE)
         {
             if(linef_hysteresis_count > LINEF_HYSTERESIS)
             {
@@ -176,8 +174,6 @@ void task_motor(void *arg)
      while (1)
      {
         vTaskDelay(1/portTICK_PERIOD_MS);
-
-        // FIXME hacer una FSM para que no envie todod el tiempo las rpm a la master task
 
         if(xQueueReceive(motor_task_receive_rpm_measure_queue, &rpm_measure_item, 0) == pdTRUE)
         {
@@ -338,8 +334,6 @@ void master_task(void *arg)
     motor_movement_vector_t motor_C_setpoint =  {0};
     motor_movement_vector_t motor_D_setpoint =  {0};
 
-    char log_buffer[100] = {0};
-
     while(1)
     {
         vTaskDelay(1/portTICK_PERIOD_MS);
@@ -390,14 +384,12 @@ void master_task(void *arg)
             xQueueSend(master_task_motor_C_rcv_queue, &motor_C_setpoint, 0);
             xQueueSend(master_task_motor_D_rcv_queue, &motor_D_setpoint, 0);
             ESP_LOGI(TAG, "received new setpoint or kalman feedback [%2.2f -- %2.3f, %2.3f, %2.3f]", movement_vector.setpoint, velocidades_lineales[0], velocidades_lineales[1], velocidades_lineales[2]);
-            //ESP_LOGI(TAG, "motor speeds [%2.2f | %2.2f | %2.2f | %2.2f]", velocidades_angulares_motores[0], velocidades_angulares_motores[1], velocidades_angulares_motores[2], velocidades_angulares_motores[3]);
 
             // FIXME hacer clear de la cola de RPM master_task_feedback
             if(!is_running) xQueueReset(master_task_feedback);
 
             state = ST_MT_GATHER_RPM;
         }
-
 
         switch(state)
         {
@@ -477,7 +469,6 @@ void master_task(void *arg)
                                                 rpm_queue[i].busy = 0;
                                                 rpm_average_array[i] = rpm_queue[i].rpm;
                                             }
-                                            send_mqtt_log("ST_MT_CALC_RPM_COMP", "topic/state");
                                             state = ST_MT_CALC_RPM_COMP;
                                         }
                                     }
@@ -506,21 +497,6 @@ void master_task(void *arg)
             {
                 // Obtencion de las velocidades lineales reales a partir de las RPM
                 calculo_matriz_cinematica_directa(rpm_average_array, velocidades_lineales_reales);
-                // ESP_LOGI(TAG, );
-                sprintf(log_buffer, "{\"a\": %2.2f, \"b\": %2.2f, \"c\": %2.2f, \"d\": %2.2f}",
-                              rpm_average_array[0],
-                              rpm_average_array[1],
-                              rpm_average_array[2],
-                              rpm_average_array[3]);
-                send_mqtt_log(log_buffer, "topic/rpm_avg");
-
-                memset(log_buffer, 0, sizeof(log_buffer));
-
-                sprintf(log_buffer, "{\"a\": %d, \"b\": %d, \"c\": %d}",
-                        line_follower_count[0],
-                        line_follower_count[1],
-                        line_follower_count[2]);
-                send_mqtt_log(log_buffer, "topic/line_fllw_cnt");
 
                 // calculo de odometria
                 current_tick = xTaskGetTickCount();
@@ -528,7 +504,6 @@ void master_task(void *arg)
                 last_tick = current_tick;
 
                 calculo_distancia_recorrida_acumulada(velocidades_lineales_reales, delta_t, distancia_accum, delta_distance);
-                //ESP_LOGI(TAG, "recorrido accum: x=%2.3f / y=%2.3f / r=%2.3f   || delta_t: %2.3f", distancia_accum[0], distancia_accum[1], distancia_accum[2], delta_t);
 
                 if(robot_in_radius_of_setpoint(flag_rotacion, desired_setpoint, distancia_accum))
                 {
@@ -545,11 +520,10 @@ void master_task(void *arg)
                     xQueueSend(master_task_motor_C_rcv_queue, &motor_C_setpoint, 0);
                     xQueueSend(master_task_motor_D_rcv_queue, &motor_D_setpoint, 0);
 
-                    // send_mqtt_feedback_only(distancia_accum, -1);
                     send_mqtt_feedback(velocidades_lineales_reales, delta_distance);
                     send_mqtt_status_path_done();
 
-                   if(!flag_rotacion) reset_accum();
+                    if(!flag_rotacion) reset_accum();
 
                     is_running = 0;
                     flag_rotacion = 1;
@@ -560,17 +534,13 @@ void master_task(void *arg)
                 if (flag_rotacion)
                 {
                     calculo_compensacion_linea_magnetica((velocidades_lineales[2] == 0), velocidades_lineales_reales, line_follower_count);
-                    // send_mqtt_feedback_only(velocidades_lineales_reales, 1);
 
                     calculo_compensacion_rotacional(velocidades_lineales_reales);
-                    // send_mqtt_feedback_only(velocidades_lineales_reales, 2);
                 }
+
                 calculo_error_velocidades_lineales(velocidades_lineales, velocidades_lineales_reales, delta_velocidad_lineal);
-                // send_mqtt_feedback_only(velocidades_lineales_reales, 3);
 
                 calculo_matriz_cinematica_inversa(delta_velocidad_lineal, velocidad_angular_compensacion_ruedas);
-                // send_mqtt_feedback_only(velocidades_lineales_reales, 4);
-                // send_mqtt_feedback(velocidades_lineales_reales, delta_distance);
 
                 linef_hysteresis_count++;
 

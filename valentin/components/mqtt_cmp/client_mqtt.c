@@ -120,17 +120,6 @@ void send_mqtt_feedback(float velocidades_lineales_reales[VELOCITY_VECTOR_SIZE],
     }
 }
 
-void send_mqtt_feedback_only(float velocidades_lineales_reales[VELOCITY_VECTOR_SIZE], int indice)
-{
-    char buffer[90];
-    sprintf(buffer, "{\"vr\": %2.3f}", velocidades_lineales_reales[2]);
-
-    if (esp_mqtt_client_publish(client, "topic/z", buffer, 0, 0, 0) == ESP_FAIL)
-    {
-        ESP_LOGE(TAG, "error in publish msg");
-    }
-}
-
 void send_mqtt_status_path_done()
 {
     char buffer[16];
@@ -161,7 +150,7 @@ void forward_robot_feedback(xQueueHandle *receive_queue, movement_vector_t *moto
     }
 }
 
-void send_mqtt_log(char* buffer, char* topic)
+void send_mqtt_log(char *buffer, char *topic)
 {
     if (esp_mqtt_client_publish(client, topic, buffer, 0, 0, 0) == ESP_FAIL)
     {
