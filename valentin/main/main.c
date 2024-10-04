@@ -439,8 +439,14 @@ void master_task(void *arg)
                                 xQueueSend(master_task_motor_C_rcv_queue, &motor_C_setpoint, 0);
                                 xQueueSend(master_task_motor_D_rcv_queue, &motor_D_setpoint, 0);
 
-                                send_mqtt_status_path_done();
+                                if(!flag_rotacion)
+                                {
+                                    reset_accum();
+                                    send_mqtt_status_path_done();
+                                }
+
                                 is_running = 0;
+                                flag_rotacion = 1;
                                 state = ST_MT_IDLE;
                             }
                             break;
