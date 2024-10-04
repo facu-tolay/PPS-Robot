@@ -512,6 +512,8 @@ void master_task(void *arg)
 
                 calculo_distancia_recorrida_acumulada(velocidades_lineales_reales, delta_t, distancia_accum, delta_distance);
 
+                send_mqtt_feedback(velocidades_lineales_reales, delta_distance);
+
                 if(robot_in_radius_of_setpoint(flag_rotacion, desired_setpoint, distancia_accum))
                 {
                     motor_A_setpoint.rpm = 0;
@@ -527,7 +529,7 @@ void master_task(void *arg)
                     xQueueSend(master_task_motor_C_rcv_queue, &motor_C_setpoint, 0);
                     xQueueSend(master_task_motor_D_rcv_queue, &motor_D_setpoint, 0);
 
-                    send_mqtt_feedback(velocidades_lineales_reales, delta_distance);
+                    // send_mqtt_feedback(velocidades_lineales_reales, delta_distance);
 
                     if(!flag_rotacion)
                     {
@@ -573,7 +575,7 @@ void master_task(void *arg)
                 xQueueSend(master_task_motor_C_rcv_queue, &motor_C_setpoint, 0);
                 xQueueSend(master_task_motor_D_rcv_queue, &motor_D_setpoint, 0);
 
-                send_mqtt_feedback(velocidades_lineales_reales, delta_distance);
+                // send_mqtt_feedback(velocidades_lineales_reales, delta_distance);
 
                 state = ST_MT_GATHER_RPM;
                 break;
