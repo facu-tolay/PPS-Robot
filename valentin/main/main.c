@@ -241,7 +241,7 @@ void task_motor(void *arg)
 
             if(new_setpoint.setpoint >= 0)
             {
-                objective_distance = new_setpoint.setpoint + 0.5;
+                objective_distance = new_setpoint.setpoint + 0.3;
                 distance_accum = 0;
 
                 memset(rpm_buffer, 0, sizeof(rpm_buffer));
@@ -346,6 +346,8 @@ void master_task(void *arg)
             rotacion_plena(velocidades_lineales, &flag_rotacion);
             calculo_matriz_cinematica_inversa(velocidades_lineales, velocidades_angulares_motores);
 
+            // FIXME aca el setpoint que se pasa al robot representa el movimiento total del robot. Dado que cada rueda tiene distintos valores de RPM para un vector dado,
+            // cada una va a recorrer distancias distintas y no necesariamente coinciden con el desplazamiento total del robot.
             motor_A_setpoint.rpm = velocidades_angulares_motores[0];
             motor_B_setpoint.rpm = velocidades_angulares_motores[1];
             motor_C_setpoint.rpm = velocidades_angulares_motores[2];
@@ -360,6 +362,8 @@ void master_task(void *arg)
 
             if(!is_running)
             {
+                xQueueReset(master_task_feedback);
+
                 restart_pulse_counter(PCNT_UNIT_0);
                 restart_pulse_counter(PCNT_UNIT_1);
                 restart_pulse_counter(PCNT_UNIT_2);
@@ -384,9 +388,6 @@ void master_task(void *arg)
             xQueueSend(master_task_motor_C_rcv_queue, &motor_C_setpoint, 0);
             xQueueSend(master_task_motor_D_rcv_queue, &motor_D_setpoint, 0);
             ESP_LOGI(TAG, "received new setpoint or kalman feedback [%2.2f -- %2.3f, %2.3f, %2.3f]", movement_vector.setpoint, velocidades_lineales[0], velocidades_lineales[1], velocidades_lineales[2]);
-
-            // FIXME hacer clear de la cola de RPM master_task_feedback
-            if(!is_running) xQueueReset(master_task_feedback);
 
             state = ST_MT_GATHER_RPM;
         }
@@ -521,9 +522,12 @@ void master_task(void *arg)
                     xQueueSend(master_task_motor_D_rcv_queue, &motor_D_setpoint, 0);
 
                     send_mqtt_feedback(velocidades_lineales_reales, delta_distance);
-                    // send_mqtt_status_path_done();
 
-                    if(!flag_rotacion) reset_accum();
+                    if(!flag_rotacion)
+                    {
+                        reset_accum();
+                        send_mqtt_status_path_done();
+                    }
 
                     is_running = 0;
                     flag_rotacion = 1;
