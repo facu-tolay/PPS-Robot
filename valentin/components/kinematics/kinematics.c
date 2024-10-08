@@ -223,7 +223,7 @@ uint8_t robot_in_radius_of_setpoint(uint8_t is_rotating, float desired_setpoint,
     }
 }
 
-void rotacion_plena(float *velocidades_lineales, int *flag_rotacion)
+void rotacion_plena(float *velocidades_lineales, uint8_t *flag_rotacion)
 {
     if (velocidades_lineales[0] == (float)0 && velocidades_lineales[1] == (float)0 && velocidades_lineales[2] != (float)0)
     {
