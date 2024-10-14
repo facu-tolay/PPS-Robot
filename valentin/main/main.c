@@ -241,7 +241,7 @@ void task_motor(void *arg)
 
             if(new_setpoint.setpoint >= 0)
             {
-                objective_distance = new_setpoint.setpoint + 0.3;
+                objective_distance = new_setpoint.setpoint + 0.1;
                 distance_accum = 0;
 
                 memset(rpm_buffer, 0, sizeof(rpm_buffer));
@@ -443,8 +443,9 @@ void master_task(void *arg)
                                 {
                                     reset_accum();
                                     send_mqtt_status_path_done();
-                                }
 
+                                }
+                                ESP_LOGI(TAG, "LLEGO ST_MT_GATHER_RPM");
                                 is_running = 0;
                                 flag_rotacion = 1;
                                 state = ST_MT_IDLE;
@@ -537,6 +538,7 @@ void master_task(void *arg)
                         send_mqtt_status_path_done();
                     }
 
+                    ESP_LOGI(TAG, "LLEGO");
                     is_running = 0;
                     flag_rotacion = 1;
                     state = ST_MT_IDLE;

@@ -149,22 +149,30 @@ void calculo_compensacion_linea_magnetica(uint8_t is_velocidad_rotacional_zero, 
             {
                 if(i==0)
                 {
+                    ESP_LOGI("kinematics", "rot acum ANTES [%d]: %3.4f\n", i, desplazamiento_rot_accum);
                     desplazamiento_rot_accum = desplazamiento_rot_accum + line_follower_count[i]*3.0;
+                    ESP_LOGI("kinematics", "rot acum DESPUES [%d]: %3.4f\n", i, desplazamiento_rot_accum);
                 }
                 else
                 {
+                    ESP_LOGI("kinematics", "rot acum ANTES [%d]: %3.4f\n", i, desplazamiento_rot_accum);
                     desplazamiento_rot_accum = desplazamiento_rot_accum - line_follower_count[i]*3.0;
+                    ESP_LOGI("kinematics", "rot acum DESPUES [%d]: %3.4f\n", i, desplazamiento_rot_accum);
                 }
             }
             else
             {
                 if(i==0)
                 {
+                    ESP_LOGI("kinematics", "rot acum ANTES [%d]: %3.4f\n", i, desplazamiento_rot_accum);
                     desplazamiento_rot_accum = desplazamiento_rot_accum + line_follower_count[i]*3.0;
+                    ESP_LOGI("kinematics", "rot acum DESPUES [%d]: %3.4f\n", i, desplazamiento_rot_accum);
                 }
                 else
                 {
+                    ESP_LOGI("kinematics", "rot acum ANTES [%d]: %3.4f\n", i, desplazamiento_rot_accum);
                     desplazamiento_rot_accum = desplazamiento_rot_accum - line_follower_count[i]*3.0;
+                    ESP_LOGI("kinematics", "rot acum DESPUES [%d]: %3.4f\n", i, desplazamiento_rot_accum);
                 }
             }
         }
@@ -176,20 +184,23 @@ void calculo_compensacion_rotacional(float velocidades_lineales_reales[VELOCITY_
     // FIXME esto quiza necesitaria un if para saber si esta yendo en linea recta o no ( velocidad_lineal[2] == v_rotacional == 0 )
     // creo que no funcionaria bien para los casos que tiene que rotar, dado que esto lo que hace es tratar siempre de llevar el desplazamiento rotazional a cero
 
-    float velocity_dependent_factor = -3.6 * velocidades_lineales_reales[1];
+    float velocity_dependent_factor = 3.2 * velocidades_lineales_reales[1];
 
     if(line_follower_detected)
     {
         // se compensa la rotacion en base a cuanto desplazamiento rotacional se detecte y dependiendo de la velocidad de movimiento del robot.
         // Al detectar un iman, la compensacion sera mayor si la velocidad del robot es mayor. Lo contrario si el robot se mueve mas lento.
-
-        velocidades_lineales_reales[2] = velocidades_lineales_reales[2] + (desplazamiento_rot_accum * velocity_dependent_factor * 2.75);
+        ESP_LOGI("kinematics", "linea detectada ANTES: %3.4f\n", velocidades_lineales_reales[2]);
+        velocidades_lineales_reales[2] = velocidades_lineales_reales[2] + (desplazamiento_rot_accum * velocity_dependent_factor * 2.5);
         line_follower_detected = 0;
+        ESP_LOGI("kinematics", "linea detectada DESPUES: %3.4f\n", velocidades_lineales_reales[2]);
     }
     else
     {
         // En el caso de no detectar ningun iman, se compensa solo la rotacion en base a cuanto desplazamiento rotacional se detecte segun la medicion de Vrotacional.
+        ESP_LOGI("kinematics", "linea NO detectada ANTES: %3.4f\n", velocidades_lineales_reales[2]);
         velocidades_lineales_reales[2] = velocidades_lineales_reales[2] + (desplazamiento_rot_accum * 1.95);
+        ESP_LOGI("kinematics", "linea NO detectada DESPUES: %3.4f\n", velocidades_lineales_reales[2]);
     }
 
     // otra idea seria hacer que se desplace hacia un costado
@@ -208,8 +219,8 @@ void reset_accum()
 
 uint8_t robot_in_radius_of_setpoint(uint8_t is_rotating, float desired_setpoint, float *current_position)
 {
-    float delta_x = fabs(current_position[0] - desired_setpoint);
-    float delta_y = fabs(current_position[1] - desired_setpoint);
+    float delta_x = fabs(current_position[0] - (desired_setpoint+0.1));
+    float delta_y = fabs(current_position[1] - (desired_setpoint+0.1));
     float delta_z = fabs(current_position[2] - desired_setpoint);
 
     if(!is_rotating)

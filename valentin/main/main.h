@@ -21,6 +21,7 @@
 #include "../components/utils/utils.h"
 #include "../components/mqtt_cmp/client_mqtt.h"
 #include "../components/wifi/wifi.h"
+#include "esp_log.h"
 
 #define INCLUDE_vTaskDelay 1
 
