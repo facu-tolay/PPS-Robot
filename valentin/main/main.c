@@ -515,7 +515,7 @@ void master_task(void *arg)
 
                 send_mqtt_feedback(velocidades_lineales_reales, delta_distance);
 
-                if(robot_in_radius_of_setpoint(flag_rotacion, desired_setpoint, distancia_accum))
+                if(!flag_rotacion && robot_in_radius_of_setpoint(flag_rotacion, desired_setpoint, distancia_accum))
                 {
                     motor_A_setpoint.rpm = 0;
                     motor_A_setpoint.setpoint = 0;
