@@ -184,10 +184,12 @@ void calculo_compensacion_rotacional(float velocidades_lineales_reales[VELOCITY_
     // FIXME esto quiza necesitaria un if para saber si esta yendo en linea recta o no ( velocidad_lineal[2] == v_rotacional == 0 )
     // creo que no funcionaria bien para los casos que tiene que rotar, dado que esto lo que hace es tratar siempre de llevar el desplazamiento rotazional a cero
 
-    float velocity_dependent_factor = 4.3 * velocidades_lineales_reales[1];
+    float velocity_dependent_factor;
 
     if(line_follower_detected)
     {
+        velocity_dependent_factor = 4.3 * velocidades_lineales_reales[1];
+
         // se compensa la rotacion en base a cuanto desplazamiento rotacional se detecte y dependiendo de la velocidad de movimiento del robot.
         // Al detectar un iman, la compensacion sera mayor si la velocidad del robot es mayor. Lo contrario si el robot se mueve mas lento.
         // ESP_LOGI("kinematics", "linea detectada ANTES: %3.4f\n", velocidades_lineales_reales[2]);
@@ -197,9 +199,10 @@ void calculo_compensacion_rotacional(float velocidades_lineales_reales[VELOCITY_
     }
     else
     {
+        velocity_dependent_factor = 2.2 * velocidades_lineales_reales[1];
         // En el caso de no detectar ningun iman, se compensa solo la rotacion en base a cuanto desplazamiento rotacional se detecte segun la medicion de Vrotacional.
         // ESP_LOGI("kinematics", "linea NO detectada ANTES: %3.4f\n", velocidades_lineales_reales[2]);
-        velocidades_lineales_reales[2] = velocidades_lineales_reales[2] + (desplazamiento_rot_accum * 2.8);
+        velocidades_lineales_reales[2] = velocidades_lineales_reales[2] + (desplazamiento_rot_accum * velocity_dependent_factor * 2.4);
         // ESP_LOGI("kinematics", "linea NO detectada DESPUES: %3.4f\n", velocidades_lineales_reales[2]);
     }
 
