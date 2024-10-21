@@ -222,8 +222,7 @@ void task_motor(void *arg)
             else
             {
                 motorStop(task_params->assigned_motor);
-                pid_params._integral = 0;
-                pid_params._pre_error = 0;
+                reset_pid_state(&pid_params);
             }
         }
 
@@ -389,7 +388,15 @@ void master_task(void *arg)
             xQueueSend(master_task_motor_D_rcv_queue, &motor_D_setpoint, 0);
             ESP_LOGI(TAG, "received new setpoint or kalman feedback [%2.2f -- %2.3f, %2.3f, %2.3f]", movement_vector.setpoint, velocidades_lineales[0], velocidades_lineales[1], velocidades_lineales[2]);
 
-            state = ST_MT_GATHER_RPM;
+            if(movement_vector.setpoint == 0 && movement_vector.velocidad_lineal_x == 0 && movement_vector.velocidad_lineal_y == 0 && movement_vector.velocidad_angular == 0)
+            {
+                // is_running = 0;
+                state = ST_MT_IDLE;
+            }
+            else
+            {
+                state = ST_MT_GATHER_RPM;
+            }
         }
 
         switch(state)
@@ -530,8 +537,6 @@ void master_task(void *arg)
                     xQueueSend(master_task_motor_C_rcv_queue, &motor_C_setpoint, 0);
                     xQueueSend(master_task_motor_D_rcv_queue, &motor_D_setpoint, 0);
 
-                    // send_mqtt_feedback(velocidades_lineales_reales, delta_distance);
-
                     if(!flag_rotacion)
                     {
                         reset_accum();
@@ -576,8 +581,6 @@ void master_task(void *arg)
                 xQueueSend(master_task_motor_B_rcv_queue, &motor_B_setpoint, 0);
                 xQueueSend(master_task_motor_C_rcv_queue, &motor_C_setpoint, 0);
                 xQueueSend(master_task_motor_D_rcv_queue, &motor_D_setpoint, 0);
-
-                // send_mqtt_feedback(velocidades_lineales_reales, delta_distance);
 
                 state = ST_MT_GATHER_RPM;
                 break;
