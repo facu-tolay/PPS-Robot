@@ -197,7 +197,7 @@ void calculo_compensacion_rotacional(float velocidades_lineales_reales[VELOCITY_
     }
     else
     {
-        velocity_dependent_factor = 2.4 * velocidades_lineales_reales[1];
+        velocity_dependent_factor = 1.25 * velocidades_lineales_reales[1];
         // En el caso de no detectar ningun iman, se compensa solo la rotacion en base a cuanto desplazamiento rotacional se detecte segun la medicion de Vrotacional.
         velocidades_lineales_reales[2] = velocidades_lineales_reales[2] + (desplazamiento_rot_accum * velocity_dependent_factor * 2.8);
     }
