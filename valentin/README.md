@@ -1,52 +1,69 @@
-# Hello World Example
 
-Starts a FreeRTOS task to print "Hello World".
+# Valentin
 
-(See the README.md file in the upper level 'examples' directory for more information about examples.)
-
-## How to use example
-
-Follow detailed instructions provided specifically for this example. 
-
-Select the instructions depending on Espressif chip installed on your development board:
-
-- [ESP32 Getting Started Guide](https://docs.espressif.com/projects/esp-idf/en/stable/get-started/index.html)
-- [ESP32-S2 Getting Started Guide](https://docs.espressif.com/projects/esp-idf/en/latest/esp32s2/get-started/index.html)
+## Introducción
+Framework de un robot onmidireccional de cuatro ruedas que forma parte de las prácticas profesionales supervisadas y proyecto integrador, realizados dentro del Laboratorio de Arquitectura de Computadoras y pertenece a la carrera de Ingenería en Computación.
 
 
-## Example folder contents
+## Descripción
 
-The project **hello_world** contains one source file in C language [hello_world_main.c](main/hello_world_main.c). The file is located in folder [main](main).
+Este proyecto contiene severos modulos que respaldan al funcionamiento del robot, entre ellos se encuentran la cinemática del robot, el control de los motores, el controlador PID, la conexión a una red WiFi y la comunicación por MQTT.
 
-ESP-IDF projects are build using CMake. The project build configuration is contained in `CMakeLists.txt` files that provide set of directives and instructions describing the project's source files and targets (executable, library, or both). 
+<p align="center">
+    <img src="https://media.giphy.com/media/v1.Y2lkPTc5MGI3NjExaGY0OHJndWN3N2U3cDd6cnczbXhxd2g0dzBldHFobGs5dDZqYTE0YSZlcD12MV9pbnRlcm5hbF9naWZfYnlfaWQmY3Q9Zw/sPPc5VKrM4s3EhGxeI/giphy.gif" width="360" height="360">
+</p>
 
-Below is short explanation of remaining files in the project folder.
 
-```
-├── CMakeLists.txt
-├── example_test.py            Python script used for automated example testing
-├── main
-│   ├── CMakeLists.txt
-│   ├── component.mk           Component make file
-│   └── hello_world_main.c
-├── Makefile                   Makefile used by legacy GNU Make
-└── README.md                  This is the file you are currently reading
+## Ejecutar el proyecto
+
+Clonar el repositorio
+
+```bash
+  git clone https://link-to-project
 ```
 
-For more information on structure and contents of ESP-IDF projects, please refer to Section [Build System](https://docs.espressif.com/projects/esp-idf/en/latest/esp32/api-guides/build-system.html) of the ESP-IDF Programming Guide.
+Entrar al directorio del proyecto
 
-## Troubleshooting
+```bash
+  cd valentin
+```
 
-* Program upload failure
+Configurar el entorno para ESP-IDF
 
-    * Hardware connection is not correct: run `idf.py -p PORT monitor`, and reboot your board to see if there are any output logs.
-    * The baud rate for downloading is too high: lower your baud rate in the `menuconfig` menu, and try again.
+```bash
+  . $HOME/esp/esp-idf/export.sh
+```
 
-## Technical support and feedback
+Configura las variables del entorno
 
-Please use the following feedback channels:
+```bash
+  idf.py menuconfig
+```
 
-* For technical queries, go to the [esp32.com](https://esp32.com/) forum
-* For a feature request or bug report, create a [GitHub issue](https://github.com/espressif/esp-idf/issues)
+Dentro de `Robot Settings` existen:
 
-We will get back to you as soon as possible.
+`WIFI_SSID`
+
+`WIFI_PASS`
+
+`BROKER_HOST`
+
+`BROKER_PORT`
+
+`ROBOT_ID`
+
+Compilar el proyecto
+
+```bash
+  idf.py build
+```
+
+Grabar el binario
+
+```bash
+  idf.py -p /dev/ttyUSB0 flash
+```
+## Autores
+
+- [@francovaira](https://www.github.com/francovaira)
+- [@facu-tolay](https://www.github.com/facu-tolay)
