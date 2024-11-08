@@ -10,9 +10,8 @@ Framework de un robot onmidireccional de cuatro ruedas que forma parte de las pr
 Este proyecto contiene severos modulos que respaldan al funcionamiento del robot, entre ellos se encuentran la cinemática del robot, el control de los motores, el controlador PID, la conexión a una red WiFi y la comunicación por MQTT.
 
 <p align="center">
-    <img src="https://media.giphy.com/media/v1.Y2lkPTc5MGI3NjExaGY0OHJndWN3N2U3cDd6cnczbXhxd2g0dzBldHFobGs5dDZqYTE0YSZlcD12MV9pbnRlcm5hbF9naWZfYnlfaWQmY3Q9Zw/sPPc5VKrM4s3EhGxeI/giphy.gif" width="360" height="360">
+    <img src="Imagenes/giphy.gif" width="360" height="360">
 </p>
-
 
 ## Ejecutar el proyecto
 
