@@ -145,35 +145,13 @@ void calculo_compensacion_linea_magnetica(uint8_t is_velocidad_rotacional_zero, 
         {
             line_follower_detected = 1;
 
-            if(!is_velocidad_rotacional_zero)
+            if(i==0)
             {
-                if(i==0)
-                {
-                    // ESP_LOGI("kinematics", "rot acum ANTES [%d]: %3.4f\n", i, desplazamiento_rot_accum);
-                    desplazamiento_rot_accum = desplazamiento_rot_accum + line_follower_count[i]*3.0;
-                    // ESP_LOGI("kinematics", "rot acum DESPUES [%d]: %3.4f\n", i, desplazamiento_rot_accum);
-                }
-                else
-                {
-                    // ESP_LOGI("kinematics", "rot acum ANTES [%d]: %3.4f\n", i, desplazamiento_rot_accum);
-                    desplazamiento_rot_accum = desplazamiento_rot_accum - line_follower_count[i]*3.0;
-                    // ESP_LOGI("kinematics", "rot acum DESPUES [%d]: %3.4f\n", i, desplazamiento_rot_accum);
-                }
+                desplazamiento_rot_accum = desplazamiento_rot_accum + line_follower_count[i] * 3.0;
             }
             else
             {
-                if(i==0)
-                {
-                    // ESP_LOGI("kinematics", "rot acum ANTES [%d]: %3.4f\n", i, desplazamiento_rot_accum);
-                    desplazamiento_rot_accum = desplazamiento_rot_accum + line_follower_count[i]*3.0;
-                    // ESP_LOGI("kinematics", "rot acum DESPUES [%d]: %3.4f\n", i, desplazamiento_rot_accum);
-                }
-                else
-                {
-                    // ESP_LOGI("kinematics", "rot acum ANTES [%d]: %3.4f\n", i, desplazamiento_rot_accum);
-                    desplazamiento_rot_accum = desplazamiento_rot_accum - line_follower_count[i]*3.0;
-                    // ESP_LOGI("kinematics", "rot acum DESPUES [%d]: %3.4f\n", i, desplazamiento_rot_accum);
-                }
+                desplazamiento_rot_accum = desplazamiento_rot_accum - line_follower_count[i] * 3.0;
             }
         }
     }
@@ -197,9 +175,9 @@ void calculo_compensacion_rotacional(float velocidades_lineales_reales[VELOCITY_
     }
     else
     {
-        velocity_dependent_factor = 1.25 * velocidades_lineales_reales[1];
+        velocity_dependent_factor = 1.5 * velocidades_lineales_reales[1];
         // En el caso de no detectar ningun iman, se compensa solo la rotacion en base a cuanto desplazamiento rotacional se detecte segun la medicion de Vrotacional.
-        velocidades_lineales_reales[2] = velocidades_lineales_reales[2] + (desplazamiento_rot_accum * velocity_dependent_factor * 2.8);
+        velocidades_lineales_reales[2] = velocidades_lineales_reales[2] + (desplazamiento_rot_accum * velocity_dependent_factor * 4.0);
     }
 
     // otra idea seria hacer que se desplace hacia un costado
@@ -238,5 +216,50 @@ void rotacion_plena(float *velocidades_lineales, uint8_t *flag_rotacion)
     if (velocidades_lineales[0] == (float)0 && velocidades_lineales[1] == (float)0 && velocidades_lineales[2] != (float)0)
     {
         *flag_rotacion = 0;
+    }
+}
+
+
+
+
+void calculo_compensacion_linea_magneticaDEPRECATED(uint8_t is_velocidad_rotacional_zero, float velocidades_lineales_reales[VELOCITY_VECTOR_SIZE], int line_follower_count[HALL_SENSOR_COUNT])
+{
+    for(int i=0; i<HALL_SENSOR_COUNT; i++)
+    {
+        if ((i == 0 || i == 2) && line_follower_count[i] != 0)
+        {
+            line_follower_detected = 1;
+
+            if(!is_velocidad_rotacional_zero)
+            {
+                if(i==0)
+                {
+                    // ESP_LOGI("kinematics", "rot acum ANTES [%d]: %3.4f\n", i, desplazamiento_rot_accum);
+                    desplazamiento_rot_accum = desplazamiento_rot_accum + line_follower_count[i]*3.0;
+                    // ESP_LOGI("kinematics", "rot acum DESPUES [%d]: %3.4f\n", i, desplazamiento_rot_accum);
+                }
+                else
+                {
+                    // ESP_LOGI("kinematics", "rot acum ANTES [%d]: %3.4f\n", i, desplazamiento_rot_accum);
+                    desplazamiento_rot_accum = desplazamiento_rot_accum - line_follower_count[i]*3.0;
+                    // ESP_LOGI("kinematics", "rot acum DESPUES [%d]: %3.4f\n", i, desplazamiento_rot_accum);
+                }
+            }
+            else
+            {
+                if(i==0)
+                {
+                    // ESP_LOGI("kinematics", "rot acum ANTES [%d]: %3.4f\n", i, desplazamiento_rot_accum);
+                    desplazamiento_rot_accum = desplazamiento_rot_accum + line_follower_count[i]*3.0;
+                    // ESP_LOGI("kinematics", "rot acum DESPUES [%d]: %3.4f\n", i, desplazamiento_rot_accum);
+                }
+                else
+                {
+                    // ESP_LOGI("kinematics", "rot acum ANTES [%d]: %3.4f\n", i, desplazamiento_rot_accum);
+                    desplazamiento_rot_accum = desplazamiento_rot_accum - line_follower_count[i]*3.0;
+                    // ESP_LOGI("kinematics", "rot acum DESPUES [%d]: %3.4f\n", i, desplazamiento_rot_accum);
+                }
+            }
+        }
     }
 }
