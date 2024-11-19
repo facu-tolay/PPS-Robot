@@ -33,15 +33,19 @@ void calculo_matriz_cinematica_inversa(float *vector_velocidad_lineal, float *ve
 
     matriz_velocidad_lineal[0][0] = -265.8414; // (-sqrt(2)/2)*(30/(WHEEL_RADIUS*M_PI));
     matriz_velocidad_lineal[0][1] = 265.8414; // (sqrt(2)/2)*(30/(WHEEL_RADIUS*M_PI));
+    // matriz_velocidad_lineal[0][2] = 5.70866; // ROBOT_RADIUS/WHEEL_RADIUS;
     matriz_velocidad_lineal[0][2] = 5.51181; // ROBOT_RADIUS/WHEEL_RADIUS;
     matriz_velocidad_lineal[1][0] = -265.8414; // (-sqrt(2)/2)*(30/(WHEEL_RADIUS*M_PI));
     matriz_velocidad_lineal[1][1] = -265.8414; // (-sqrt(2)/2)*(30/(WHEEL_RADIUS*M_PI));
+    // matriz_velocidad_lineal[1][2] = 5.70866; // ROBOT_RADIUS/WHEEL_RADIUS;
     matriz_velocidad_lineal[1][2] = 5.51181; // ROBOT_RADIUS/WHEEL_RADIUS;
     matriz_velocidad_lineal[2][0] = 265.8414; // (sqrt(2)/2)*(30/(WHEEL_RADIUS*M_PI));
     matriz_velocidad_lineal[2][1] = -265.8414; // (-sqrt(2)/2)*(30/(WHEEL_RADIUS*M_PI));
+    // matriz_velocidad_lineal[2][2] = 5.70866; // ROBOT_RADIUS/WHEEL_RADIUS;
     matriz_velocidad_lineal[2][2] = 5.51181; // ROBOT_RADIUS/WHEEL_RADIUS;
     matriz_velocidad_lineal[3][0] = 265.8414; // (sqrt(2)/2)*(30/(WHEEL_RADIUS*M_PI));
     matriz_velocidad_lineal[3][1] = 265.8414; // (sqrt(2)/2)*(30/(WHEEL_RADIUS*M_PI)); //rpm/m
+    // matriz_velocidad_lineal[3][2] = 5.70866; // ROBOT_RADIUS/WHEEL_RADIUS;
     matriz_velocidad_lineal[3][2] = 5.51181; // ROBOT_RADIUS/WHEEL_RADIUS;
 
     for (int i=0; i<4; ++i)
@@ -92,6 +96,10 @@ void calculo_matriz_cinematica_directa(float *vector_velocidad_angular, float *v
     matriz_inversa[2][1] = 0.09071; // (1/(2*ROBOT_RADIUS))*(WHEEL_RADIUS/2);
     matriz_inversa[2][2] = 0.09071; // (1/(2*ROBOT_RADIUS))*(WHEEL_RADIUS/2);
     matriz_inversa[2][3] = 0.09071; // (1/(2*ROBOT_RADIUS))*(WHEEL_RADIUS/2);
+    // matriz_inversa[2][0] = 0.08758; // (1/(2*ROBOT_RADIUS))*(WHEEL_RADIUS/2);
+    // matriz_inversa[2][1] = 0.08758; // (1/(2*ROBOT_RADIUS))*(WHEEL_RADIUS/2);
+    // matriz_inversa[2][2] = 0.08758; // (1/(2*ROBOT_RADIUS))*(WHEEL_RADIUS/2);
+    // matriz_inversa[2][3] = 0.08758; // (1/(2*ROBOT_RADIUS))*(WHEEL_RADIUS/2);
 
     for (int i=0; i<VELOCITY_VECTOR_SIZE; ++i)
     {

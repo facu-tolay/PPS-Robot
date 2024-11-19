@@ -2,6 +2,7 @@
 #define CONSTANTS_H_
 
 // ROBOT body defines
+// #define ROBOT_RADIUS            (float)0.145
 #define ROBOT_RADIUS            (float)0.14
 
 // ENCODER PARAMS defines
