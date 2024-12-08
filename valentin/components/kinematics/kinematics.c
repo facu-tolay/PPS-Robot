@@ -155,11 +155,11 @@ void calculo_compensacion_linea_magnetica(uint8_t is_velocidad_rotacional_zero, 
 
             if(i==0)
             {
-                desplazamiento_rot_accum = desplazamiento_rot_accum + line_follower_count[i] * 3.0;
+                desplazamiento_rot_accum = desplazamiento_rot_accum + line_follower_count[i] * 2.7;
             }
             else
             {
-                desplazamiento_rot_accum = desplazamiento_rot_accum - line_follower_count[i] * 3.0;
+                desplazamiento_rot_accum = desplazamiento_rot_accum - line_follower_count[i] * 2.7;
             }
         }
     }
@@ -183,9 +183,9 @@ void calculo_compensacion_rotacional(float velocidades_lineales_reales[VELOCITY_
     }
     else
     {
-        velocity_dependent_factor = 1.5 * velocidades_lineales_reales[1];
+        velocity_dependent_factor = 2.0 * velocidades_lineales_reales[1];
         // En el caso de no detectar ningun iman, se compensa solo la rotacion en base a cuanto desplazamiento rotacional se detecte segun la medicion de Vrotacional.
-        velocidades_lineales_reales[2] = velocidades_lineales_reales[2] + (desplazamiento_rot_accum * velocity_dependent_factor * 4.0);
+        velocidades_lineales_reales[2] = velocidades_lineales_reales[2] + (desplazamiento_rot_accum * velocity_dependent_factor * 5.5);
     }
 
     // otra idea seria hacer que se desplace hacia un costado
